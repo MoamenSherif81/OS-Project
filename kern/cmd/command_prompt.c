@@ -379,6 +379,46 @@ int process_command(int number_of_arguments, char** arguments)
 {
 	//TODO: [PROJECT'23.MS1 - #2] [1] PLAY WITH CODE! - process_command
 	//Comment the following line before start coding...
-	panic("process_command is not implemented yet");
-	return 0;
+	//panic("process_command is not implemented yet");
+
+
+	LIST_INIT(&foundCommands);
+	int n = NUM_OF_COMMANDS;
+	int sz = strlen(arguments[0]);
+	for(int i = 0 ; i < n ; i ++){
+		int this_size = strlen(commands[i].name);
+		if(this_size == sz){
+			bool ok = 1;
+			for(int j = 0 ; j < sz ; j ++){
+				ok &= (arguments[0][j] == commands[i].name[j]);
+			}
+			if (ok) {
+				if(commands[i].num_of_args == -1)
+					return i;
+				if(number_of_arguments-1 == commands[i].num_of_args)
+					return i;
+				LIST_INSERT_HEAD(&foundCommands,&commands[i]);
+				return CMD_INV_NUM_ARGS;
+				break;
+			}
+		}
+	}
+	bool match = 0;
+	for(int i = 0 ; i < n ; i ++){
+		int this_size = strlen(commands[i].name);
+		int p = 0 ;
+		for(int j = 0 ; j <this_size; j++){
+			if(arguments[0][p] == commands[i].name[j])
+				p++;
+			if(p == sz){
+				match = 1;
+				LIST_INSERT_HEAD(&foundCommands,&commands[i]);
+				break;
+			}
+		}
+	}
+
+	if(match == 0)
+		return CMD_INVALID;
+	return CMD_MATCHED;
 }

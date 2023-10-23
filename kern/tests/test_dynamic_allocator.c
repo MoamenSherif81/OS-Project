@@ -20,7 +20,7 @@
 void test_initialize_dynamic_allocator()
 {
 #if USE_KHEAP
-	panic("test_initialize_dynamic_allocator: the kernel heap should be diabled. make sure USE_KHEAP = 0");
+	panic("test_initialize_dynamic_allocator: the kernel heap should be disabled. make sure USE_KHEAP = 0");
 	return;
 #endif
 

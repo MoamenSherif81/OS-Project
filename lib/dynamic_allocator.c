@@ -95,7 +95,17 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpac
 	//=========================================
 
 	//TODO: [PROJECT'23.MS1 - #5] [3] DYNAMIC ALLOCATOR - initialize_dynamic_allocator()
-	panic("initialize_dynamic_allocator is not implemented yet");
+	struct BlockMetaData* blk  = (struct BlockMetaData *) daStart;
+
+
+	blk->size =  initSizeOfAllocatedSpace ;
+	blk->is_free = 1  ;
+
+//	LIST_HEAD(blk , BlockMetaData);
+	LIST_INSERT_HEAD(&mem_blocks, blk);
+
+
+	//panic("initialize_dynamic_allocator is not implemented yet");
 }
 
 //=========================================
@@ -104,7 +114,36 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpac
 void *alloc_block_FF(uint32 size)
 {
 	//TODO: [PROJECT'23.MS1 - #6] [3] DYNAMIC ALLOCATOR - alloc_block_FF()
-	panic("alloc_block_FF is not implemented yet");
+	//panic("alloc_block_FF is not implemented yet");
+	if(size == 0){
+		return NULL;
+	}
+
+	struct BlockMetaData* block;
+	uint32 total_size = size + sizeOfMetaData();
+	LIST_FOREACH(block, &mem_blocks){
+		if(block->size == total_size && block->is_free){
+			uint32 start = (uint32)(block);
+			block->is_free = 0;
+			return (void *)(start + sizeOfMetaData());
+		} else if((block->size - sizeOfMetaData()) >= total_size && block->is_free){
+			uint32 start = (uint32)(block);
+
+			struct BlockMetaData* new_block = (struct BlockMetaData *)((uint32)block + total_size);
+			new_block->size = block->size - total_size;
+			new_block->is_free = 1;
+			block->is_free = 0;
+			block->size = total_size;
+			LIST_INSERT_AFTER(&mem_blocks, block, new_block);
+
+			return (void *)(start + sizeOfMetaData());
+		}
+	}
+
+	if(sbrk(total_size) == (void *)-1){
+		return NULL;
+	}
+
 	return NULL;
 }
 //=========================================
