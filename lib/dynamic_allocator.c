@@ -140,8 +140,17 @@ void *alloc_block_FF(uint32 size)
 		}
 	}
 
-	if(sbrk(total_size) == (void *)-1){
+	uint32* tmp = (uint32 *)sbrk(total_size);
+
+	if(tmp == (uint32 *)-1){
 		return NULL;
+	} else {
+		struct BlockMetaData* new_block = (struct BlockMetaData *)((uint32)tmp);
+		new_block->size = total_size;
+		new_block->is_free = 0;
+		LIST_INSERT_TAIL(&mem_blocks, new_block);
+
+		return tmp;
 	}
 
 	return NULL;
