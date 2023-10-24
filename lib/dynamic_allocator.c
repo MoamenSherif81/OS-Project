@@ -189,7 +189,26 @@ void *alloc_block_NF(uint32 size)
 void free_block(void *va)
 {
 	//TODO: [PROJECT'23.MS1 - #7] [3] DYNAMIC ALLOCATOR - free_block()
-	panic("free_block is not implemented yet");
+//	panic("free_block is not implemented yet");
+	if(va==0)
+		return;
+	struct BlockMetaData *curBlkMetaData = ((struct BlockMetaData *)va - 1) ;
+	curBlkMetaData->is_free=1;
+	struct BlockMetaData *next = LIST_NEXT(curBlkMetaData);
+	if(next != NULL && next->is_free)
+	{
+		curBlkMetaData->size+=next->size;
+		next->size=0;
+		next->is_free=0;
+	}
+	struct BlockMetaData *prev = LIST_PREV(curBlkMetaData);
+	if(prev != NULL && prev->is_free)
+	{
+		prev->size+=curBlkMetaData->size;
+		curBlkMetaData->size=0;
+		curBlkMetaData->is_free=0;
+	}
+	return;
 }
 
 //=========================================
