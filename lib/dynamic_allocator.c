@@ -126,15 +126,18 @@ void *alloc_block_FF(uint32 size)
 			uint32 start = (uint32)(block);
 			block->is_free = 0;
 			return (void *)(start + sizeOfMetaData());
-		} else if((block->size - sizeOfMetaData()) >= total_size && block->is_free){
+		} else if(block->size >= total_size && block->is_free){
 			uint32 start = (uint32)(block);
-
+			uint32 nblksz = block->size - total_size;
+			if(nblksz>=sizeOfMetaData()){
 			struct BlockMetaData* new_block = (struct BlockMetaData *)((uint32)block + total_size);
-			new_block->size = block->size - total_size;
+			new_block->size = nblksz;
 			new_block->is_free = 1;
+			LIST_INSERT_AFTER(&mem_blocks, block, new_block);
+			}
 			block->is_free = 0;
 			block->size = total_size;
-			LIST_INSERT_AFTER(&mem_blocks, block, new_block);
+
 
 			return (void *)(start + sizeOfMetaData());
 		}
