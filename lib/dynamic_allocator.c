@@ -135,6 +135,8 @@ void *alloc_block_FF(uint32 size)
 				new_block->is_free = 1;
 				LIST_INSERT_AFTER(&mem_blocks, block, new_block);
 			}
+			else
+				total_size += nblksz;
 			block->is_free = 0;
 			block->size = total_size;
 
@@ -304,15 +306,18 @@ void *realloc_block_FF(void *va, uint32 new_size) {
     if (new_size < currMeta->size - sizeOfMetaData()) {
         uint32 diff = currMeta->size - new_size - sizeOfMetaData();
         currMeta->size -= diff;
-
+        nxtMeta = va + new_size;
         if (nxtMeta != NULL && nxtMeta->is_free) {
             nxtMeta->size += diff;
-        } else if (diff >= sizeOfMetaData()) {
+            return va;
+        }
+        if (diff >= sizeOfMetaData()) {
             struct BlockMetaData *new_block = (struct BlockMetaData *)((uint32)va + new_size);
             new_block->size = diff;
             new_block->is_free = 1;
             LIST_INSERT_AFTER(&mem_blocks, currMeta, new_block);
         }
+        else currMeta->size += diff;
         return va;
     }
 
@@ -331,6 +336,7 @@ void *realloc_block_FF(void *va, uint32 new_size) {
             nxtMeta->size = diff;
             nxtMeta->is_free = 1;
         }
+        else currMeta->size+=diff;
         currMeta->size = new_size + sizeOfMetaData();
         return va;
     } else {
