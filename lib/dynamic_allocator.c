@@ -130,10 +130,10 @@ void *alloc_block_FF(uint32 size)
 			uint32 start = (uint32)(block);
 			uint32 nblksz = block->size - total_size;
 			if(nblksz>=sizeOfMetaData()){
-			struct BlockMetaData* new_block = (struct BlockMetaData *)((uint32)block + total_size);
-			new_block->size = nblksz;
-			new_block->is_free = 1;
-			LIST_INSERT_AFTER(&mem_blocks, block, new_block);
+				struct BlockMetaData* new_block = (struct BlockMetaData *)((uint32)block + total_size);
+				new_block->size = nblksz;
+				new_block->is_free = 1;
+				LIST_INSERT_AFTER(&mem_blocks, block, new_block);
 			}
 			block->is_free = 0;
 			block->size = total_size;
@@ -164,7 +164,56 @@ void *alloc_block_FF(uint32 size)
 void *alloc_block_BF(uint32 size)
 {
 	//TODO: [PROJECT'23.MS1 - BONUS] [3] DYNAMIC ALLOCATOR - alloc_block_BF()
-	panic("alloc_block_BF is not implemented yet");
+	//panic("alloc_block_BF is not implemented yet");
+	if(size == 0){
+		return NULL;
+	}
+
+	struct BlockMetaData* address = NULL;
+	struct BlockMetaData* block;
+	uint32 total_size = size + sizeOfMetaData();
+	LIST_FOREACH(block, &mem_blocks){
+		if(((block->size >= total_size) || (block->size == total_size)) && block->is_free){
+			if(address == NULL || block->size < address->size){
+				address = block;
+			}
+		}
+	}
+
+	if(address != NULL){
+		if(address->size == total_size){
+			uint32 start = (uint32)(address);
+			address->is_free = 0;
+			return (void *)(start + sizeOfMetaData());
+		}
+		uint32 start = (uint32)(address);
+		uint32 nblksz = address->size - total_size;
+		if(nblksz>=sizeOfMetaData()){
+			struct BlockMetaData* new_block = (struct BlockMetaData *)((uint32)address + total_size);
+			new_block->size = nblksz;
+			new_block->is_free = 1;
+			LIST_INSERT_AFTER(&mem_blocks, address, new_block);
+		}
+		address->is_free = 0;
+		address->size = total_size;
+
+		return (void *)(start + sizeOfMetaData());
+	} else {
+		uint32* tmp = (uint32 *)sbrk(total_size);
+
+		if(tmp == (uint32 *)-1){
+			return NULL;
+		} else {
+			struct BlockMetaData* new_block = (struct BlockMetaData *)((uint32)tmp);
+			new_block->size = total_size;
+			new_block->is_free = 0;
+			LIST_INSERT_TAIL(&mem_blocks, new_block);
+
+			return tmp;
+		}
+	}
+
+
 	return NULL;
 }
 
@@ -178,7 +227,7 @@ void *alloc_block_WF(uint32 size)
 }
 
 //=========================================
-// [7] ALLOCATE BLOCK BY NEXT FIT:
+// [7] ALLOCATE (BLOCK BY NEXT FIT:
 //=========================================
 void *alloc_block_NF(uint32 size)
 {
