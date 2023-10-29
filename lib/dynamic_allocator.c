@@ -306,8 +306,9 @@ void *realloc_block_FF(void *va, uint32 new_size) {
     if (new_size < currMeta->size - sizeOfMetaData()) {
         uint32 diff = currMeta->size - new_size - sizeOfMetaData();
         currMeta->size -= diff;
-        nxtMeta = va + new_size;
+       
         if (nxtMeta != NULL && nxtMeta->is_free) {
+	     nxtMeta = va + new_size;
             nxtMeta->size += diff;
             return va;
         }
