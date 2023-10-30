@@ -10,7 +10,7 @@
 #include <kern/cons/console.h>
 #include <kern/tests/tst_handler.h>
 #include "commands.h"
-
+#include "../../inc/string.h"
 // ********** This DosKey supported readline function is implemented by **********
 // ********** Abdullah Najuib ( FCIS T.A.), 3rd year student, FCIS, 2012
 
@@ -385,8 +385,12 @@ int process_command(int number_of_arguments, char** arguments)
 	LIST_INIT(&foundCommands);
 	int n = NUM_OF_COMMANDS;
 	int sz = strlen(arguments[0]);
+
+	arguments[0] = str2lower(arguments[0],arguments[0]);
+
 	for(int i = 0 ; i < n ; i ++){
 		int this_size = strlen(commands[i].name);
+		commands[i].name = str2lower(commands[i].name,commands[i].name);
 		if(this_size == sz){
 			bool ok = 1;
 			for(int j = 0 ; j < sz ; j ++){
