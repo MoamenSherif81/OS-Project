@@ -276,76 +276,82 @@ void free_block(void *va)
 // [4] REALLOCATE BLOCK BY FIRST FIT:
 //=========================================
 //TODO: [PROJECT'23.MS1 - #8] [3] DYNAMIC ALLOCATOR - realloc_block_FF()
-void *realloc_block_FF(void *va, uint32 new_size) {
-    // Return null if both address and size are zero
-    if (va == NULL && new_size == 0) {
-        return NULL;
-    }
+	void *realloc_block_FF(void *va, uint32 new_size) {
+		// Return null if both address and size are zero
+		if (va == NULL && new_size == 0) {
+			return NULL;
+		}
 
-    // If the address is null, allocate the requested size
-    if (va == NULL) {
-        return alloc_block_FF(new_size);
-    }
+		// If the address is null, allocate the requested size
+		if (va == NULL) {
+			return alloc_block_FF(new_size);
+		}
 
-    // If the new size is zero, free the block and return null
-    if (new_size == 0) {
-        free_block(va);
-        return NULL;
-    }
+		// If the new size is zero, free the block and return null
+		if (new_size == 0) {
+			free_block(va);
+			return NULL;
+		}
 
-    // Get the current and next metadata blocks
-    struct BlockMetaData *currMeta = (struct BlockMetaData *)va - 1;
-    struct BlockMetaData *nxtMeta = LIST_NEXT(currMeta);
+		// Get the current and next metadata blocks
+		struct BlockMetaData *currMeta = (struct BlockMetaData *)va - 1;
+		struct BlockMetaData *nxtMeta = LIST_NEXT(currMeta);
+		struct BlockMetaData *nxt = nxtMeta->prev_next_info.le_next;
+		// If the new size matches the current size, return the original pointer
+		if (new_size + sizeOfMetaData() == currMeta->size) {
+			return va;
+		}
 
-    // If the new size matches the current size, return the original pointer
-    if (new_size + sizeOfMetaData() == currMeta->size) {
-        return va;
-    }
+		// CASE OF MEMORY SHRINKING
+		if (new_size < currMeta->size - sizeOfMetaData()) {
+			uint32 diff = currMeta->size - new_size - sizeOfMetaData();
+			currMeta->size -= diff;
+			if (nxtMeta != NULL && nxtMeta->is_free) {
+				uint32 tmp= nxtMeta->size;
+				nxtMeta = va + new_size;
+				currMeta->prev_next_info.le_next =nxtMeta;
+				nxtMeta->prev_next_info.le_prev=currMeta;
+				nxtMeta->prev_next_info.le_next=nxt;
+				nxtMeta->size = diff + tmp;
+				nxtMeta->is_free= 1 ;
+				return va;
+			}
+			if (diff >= sizeOfMetaData()) {
+				struct BlockMetaData *new_block = (struct BlockMetaData *)((uint32)va + new_size);
+				new_block->size = diff;
+				new_block->is_free = 1;
+				LIST_INSERT_AFTER(&mem_blocks, currMeta, new_block);
+			}
+			else currMeta->size += diff;
+			return va;
+		}
 
-    // CASE OF MEMORY SHRINKING
-    if (new_size < currMeta->size - sizeOfMetaData()) {
-        uint32 diff = currMeta->size - new_size - sizeOfMetaData();
-        currMeta->size -= diff;
-       
-        if (nxtMeta != NULL && nxtMeta->is_free) {
-	     nxtMeta = va + new_size;
-            nxtMeta->size += diff;
-            return va;
-        }
-        if (diff >= sizeOfMetaData()) {
-            struct BlockMetaData *new_block = (struct BlockMetaData *)((uint32)va + new_size);
-            new_block->size = diff;
-            new_block->is_free = 1;
-            LIST_INSERT_AFTER(&mem_blocks, currMeta, new_block);
-        }
-        else currMeta->size += diff;
-        return va;
-    }
+		// CASE OF MEMORY INCREASING
+		if (nxtMeta != NULL && nxtMeta->is_free) {
+			currMeta->size += nxtMeta->size;
+			nxtMeta->size = 0;
+			nxtMeta->is_free = 0;
+		}
 
-    // CASE OF MEMORY INCREASING
-    if (nxtMeta != NULL && nxtMeta->is_free) {
-        currMeta->size += nxtMeta->size;
-        nxtMeta->size = 0;
-        nxtMeta->is_free = 0;
-    }
+		// Expand in the same place
+		if (currMeta->size >= new_size + sizeOfMetaData()) {
+			uint32 diff = currMeta->size - new_size - sizeOfMetaData();
+			if (diff >= sizeOfMetaData()) {
+				nxtMeta = (struct BlockMetaData *)((uint32)va + new_size);
+				nxtMeta->size = diff;
+				nxtMeta->is_free = 1;
+				nxtMeta->prev_next_info.le_prev=currMeta;
+				nxtMeta->prev_next_info.le_next=nxt;
+				currMeta->prev_next_info.le_next=nxtMeta;
+			}
+			else currMeta->size +=diff;
+			currMeta->size = new_size + sizeOfMetaData();
+			return va;
+		} else {
+			free_block(va);
+			return alloc_block_FF(new_size);
+		}
 
-    // Expand in the same place
-    if (currMeta->size >= new_size + sizeOfMetaData()) {
-        uint32 diff = currMeta->size - new_size - sizeOfMetaData();
-        if (diff >= sizeOfMetaData()) {
-            nxtMeta = (struct BlockMetaData *)((uint32)va + new_size + sizeOfMetaData());
-            nxtMeta->size = diff;
-            nxtMeta->is_free = 1;
-        }
-        else currMeta->size+=diff;
-        currMeta->size = new_size + sizeOfMetaData();
-        return va;
-    } else {
-        free_block(va);
-        return alloc_block_FF(new_size);
-    }
-
-    // If none of the conditions match, return null
-    return NULL;
-}
-
+		// If none of the conditions match, return null
+		return NULL;
+	}
