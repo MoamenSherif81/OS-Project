@@ -94,7 +94,7 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpac
 		return ;
 	is_initialized = 1;
 	//=========================================
-	//=========================================
+	//== =======================================
 
 	//TODO: [PROJECT'23.MS1 - #5] [3] DYNAMIC ALLOCATOR - initialize_dynamic_allocator()
 	struct BlockMetaData* blk  = (struct BlockMetaData *) daStart;

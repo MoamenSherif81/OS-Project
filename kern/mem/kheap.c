@@ -16,7 +16,30 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 	//	Otherwise (if no memory OR initial size exceed the given limit): E_NO_MEM
 
 	//Comment the following line(s) before start coding...
-	panic("not implemented yet");
+	//panic("not implemented yet");
+
+	if(daStart + initSizeToAllocate > daLimit) return E_NO_MEM;
+
+	int numberOfPages = ROUNDUP(initSizeToAllocate / PAGE_SIZE, PAGE_SIZE);
+
+	kheap_start = daStart;
+	kheap_break = ROUNDUP(daStart + initSizeToAllocate, PAGE_SIZE);
+	kheap_limit = daLimit;
+
+	for(int i = 0; i < numberOfPages; i++){
+		uint32 currAddress = daStart + PAGE_SIZE * i;
+		struct FrameInfo *newFrameInfoPtr = NULL;
+		int returnValue = allocate_frame(&newFrameInfoPtr);
+		if(returnValue == E_NO_MEM) return E_NO_MEM;
+		else {
+			uint32 physical = to_physical_address(newFrameInfoPtr);
+			map_frame(ptr_page_directory, newFrameInfoPtr, currAddress, PERM_WRITEABLE);
+		}
+	}
+
+	initialize_dynamic_allocator(daStart, initSizeToAllocate);
+
+
 	return 0;
 }
 
