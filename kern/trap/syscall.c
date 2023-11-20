@@ -499,7 +499,7 @@ void* sys_sbrk(int increment)
 	 * 	2) New segment break should be aligned on page-boundary to avoid "No Man's Land" problem
 	 * 	3) As in real OS, allocate pages lazily. While sbrk moves the segment break, pages are not allocated
 	 * 		until the user program actually tries to access data in its heap (i.e. will be allocated via the fault handler).
-	 * 	4) Allocating additional pages for a processï¿½ heap will fail if, for example, the free frames are exhausted
+	 * 	4) Allocating additional pages for a process’ heap will fail if, for example, the free frames are exhausted
 	 * 		or the break exceed the limit of the dynamic allocator. If sys_sbrk fails, the net effect should
 	 * 		be that sys_sbrk returns (void*) -1 and that the segment break and the process heap are unaffected.
 	 * 		You might have to undo any operations you have done so far in this case.
@@ -515,13 +515,43 @@ void* sys_sbrk(int increment)
 // Dispatches to the correct kernel function, passing the arguments.
 uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uint32 a5)
 {
+
 	// Call the function corresponding to the 'syscallno' parameter.
 	// Return any appropriate return value.
 	switch(syscallno)
 	{
 	/*2023*/
 	//TODO: [PROJECT'23.MS1 - #4] [2] SYSTEM CALLS - Add suitable code here
+	case SYS_sbrk:
+		sys_sbrk((uint32)a1);
+		return 0;
+		break;
 
+	case SYS_free_user_mem:
+
+		if((uint32 *)a1 == NULL || (a1) > USER_LIMIT || (uint32 *)(a1 + a2) == NULL || (a1 + a2) > USER_LIMIT)
+		{
+			sched_kill_env(curenv->env_id);
+		}
+
+		sys_free_user_mem((uint32)a1, (uint32)a2);
+
+		return 0;
+		break;
+
+	case SYS_allocate_user_mem:
+
+
+		if((uint32 *)a1 == NULL || (a1) > USER_LIMIT || (uint32 *)(a1 + a2) == NULL || (a1 + a2) > USER_LIMIT)
+		{
+			sched_kill_env(curenv->env_id);
+		}
+
+
+		sys_allocate_user_mem((uint32)a1, (uint32)a2);
+
+		return 0;
+		break;
 	//=====================================================================
 	case SYS_cputs:
 		sys_cputs((const char*)a1,a2,(uint8)a3);
@@ -712,15 +742,6 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 	case SYS_check_WS_list:
 		return sys_check_WS_list((uint32*)a1, (int)a2, (uint32)a3, (bool)a4);
 
-	case SYS_sbrk:
-		return;
-		
-	case SYS_free_user_mem:
-		return;
-	
-	case SYS_allocate_user_mem:
-		return;
-		
 	case NSYSCALLS:
 		return 	-E_INVAL;
 		break;

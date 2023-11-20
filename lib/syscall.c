@@ -334,13 +334,23 @@ void sys_allocate_chunk(uint32 virtual_address, uint32 size, uint32 perms)
 
 /*2023*/
 //TODO: [PROJECT'23.MS1 - #3] [2] SYSTEM CALLS - Implement these system calls
+
+int na;
+uint32* oa_ptr;
+
+
 void* sys_sbrk(int increment)
 {
 	//Comment the following line before start coding...
 	//panic("not implemented yet");
-	syscall(SYS_sbrk, (uint32)increment, 0, 0, 0, 0);
 
-	return NULL;
+	syscall(SYS_sbrk, (uint32)increment, 0, 0, 0, 0);
+	return (void *)-1;
+
+
+	//na = sys_cgetc() + increment;
+	//na_ptr = &na;
+	//return (void *)na_ptr;
 }
 
 void sys_free_user_mem(uint32 virtual_address, uint32 size)
@@ -348,7 +358,7 @@ void sys_free_user_mem(uint32 virtual_address, uint32 size)
 	//Comment the following line before start coding...
 	//panic("not implemented yet");
 	syscall(SYS_free_user_mem, (uint32)virtual_address, (uint32)size, 0, 0, 0);
-	
+
 }
 
 void sys_allocate_user_mem(uint32 virtual_address, uint32 size)
@@ -356,6 +366,6 @@ void sys_allocate_user_mem(uint32 virtual_address, uint32 size)
 	//Comment the following line before start coding...
 	//panic("not implemented yet");
 	syscall(SYS_free_user_mem, (uint32)virtual_address, (uint32)size, 0, 0, 0);
-	
+
 }
 

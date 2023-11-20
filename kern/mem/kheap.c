@@ -16,7 +16,30 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 	//	Otherwise (if no memory OR initial size exceed the given limit): E_NO_MEM
 
 	//Comment the following line(s) before start coding...
-	panic("not implemented yet");
+	//panic("not implemented yet");
+
+	if(daStart + initSizeToAllocate > daLimit) return E_NO_MEM;
+
+	int numberOfPages = ROUNDUP(initSizeToAllocate / PAGE_SIZE, PAGE_SIZE);
+
+	kheap_start = daStart;
+	kheap_break = ROUNDUP(daStart + initSizeToAllocate, PAGE_SIZE);
+	kheap_limit = daLimit;
+
+	for(int i = 0; i < numberOfPages; i++){
+		uint32 currAddress = daStart + PAGE_SIZE * i;
+		struct FrameInfo *newFrameInfoPtr = NULL;
+		int returnValue = allocate_frame(&newFrameInfoPtr);
+		if(returnValue == E_NO_MEM) return E_NO_MEM;
+		else {
+			uint32 physical = to_physical_address(newFrameInfoPtr);
+			map_frame(ptr_page_directory, newFrameInfoPtr, currAddress, PERM_WRITEABLE);
+		}
+	}
+
+	initialize_dynamic_allocator(daStart, initSizeToAllocate);
+
+
 	return 0;
 }
 
@@ -38,9 +61,52 @@ void* sbrk(int increment)
 	 * 		or the break exceed the limit of the dynamic allocator. If sbrk fails, kernel should panic(...)
 	 */
 
+
+	uint32 currentBreak = kheap_break;
+
+	if(increment > 0)
+	{
+		if(ROUNDUP(kheap_break + increment, PAGE_SIZE) > kheap_limit)
+			panic("Memory limit exceeded!!!");
+		else
+		{
+			kheap_break = ROUNDUP(kheap_break + increment, PAGE_SIZE);
+
+			for(uint32 i = currentBreak; i < kheap_break; i += PAGE_SIZE)
+			{
+				struct FrameInfo* frameInfoPtr = NULL;
+				allocate_frame(&frameInfoPtr);
+				map_frame(ptr_page_directory, frameInfoPtr, kheap_break, PERM_WRITEABLE);
+			}
+
+			return (void *)currentBreak;
+		}
+
+	}
+	else if(increment == 0)
+		return (void *)currentBreak;
+	else
+	{
+		kheap_break = currentBreak + increment; // Subtract increment from current break
+		if(kheap_break < kheap_start)
+			panic("Memory limit exceeded!!!"); // Case: going lower than start of heap
+
+		if(kheap_break <= currentBreak - PAGE_SIZE)
+		{
+			// If previous page boundary is crossed, loop over pages
+			// until the page with current break
+			uint32 decrementedBreak = ROUNDUP(kheap_break, PAGE_SIZE);
+			for(uint32 i = currentBreak; i > decrementedBreak; i -= PAGE_SIZE)
+			{
+				unmap_frame(ptr_page_directory, i);
+			}
+		}
+		currentBreak = kheap_break;
+		return (void *)currentBreak;
+	}
 	//MS2: COMMENT THIS LINE BEFORE START CODING====
-	return (void*)-1 ;
-	panic("not implemented yet");
+	//return (void*)-1 ;
+	//panic("not implemented yet");
 }
 
 
@@ -122,7 +188,7 @@ void kexpand(uint32 newSize)
 
 void *krealloc(void *virtual_address, uint32 new_size)
 {
-	//TODO: [PROJECT'23.MS2 - BONUS] [1] KERNEL HEAP - krealloc()
+	//TODO: [PROJECT'23.MS2 - BONUS#1] [1] KERNEL HEAP - krealloc()
 	// Write your code here, remove the panic and write your code
 	return NULL;
 	panic("krealloc() is not implemented yet...!!");
