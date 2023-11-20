@@ -72,8 +72,9 @@ void* sbrk(int increment)
 		{
 			kheap_break = ROUNDUP(kheap_break + increment, PAGE_SIZE);
 
-			for(uint32 i = currentBreak; i < kheap_break; i += PAGE_SIZE)
+			for(uint32 i = currentBreak; i <= kheap_break; i += PAGE_SIZE)
 			{
+				// Start from current sbrk up until the new break, allocating pages all the way
 				struct FrameInfo* frameInfoPtr = NULL;
 				allocate_frame(&frameInfoPtr);
 				map_frame(ptr_page_directory, frameInfoPtr, kheap_break, PERM_WRITEABLE);
