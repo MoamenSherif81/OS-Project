@@ -4,6 +4,14 @@
 #include <inc/dynamic_allocator.h>
 #include "memory_manager.h"
 
+// todo call unmap frame
+// we need to know the acutal limits correctly
+// check if mo2men added the updated test
+// to use those arrays first map the virtual address to page num we start from kheap limit + pagesize as page num 0
+const uint32 HEAP_PAGES = 10000000;
+//((KERNEL_HEAP_MAX - (kheap_limit + PAGE_SIZE)) / PAGE_SIZE) + 5;
+uint32 reserved[10000000];
+uint32 last_size[10000000];
 
 int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate, uint32 daLimit)
 {
@@ -39,12 +47,12 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 
 	initialize_dynamic_allocator(daStart, initSizeToAllocate);
 
-
 	return 0;
 }
 
 void* sbrk(int increment)
 {
+	//kiss
 	//TODO: [PROJECT'23.MS2 - #02] [1] KERNEL HEAP - sbrk()
 	/* increment > 0: move the segment break of the kernel to increase the size of its heap,
 	 * 				you should allocate pages and map them into the kernel virtual address space as necessary,
@@ -61,9 +69,52 @@ void* sbrk(int increment)
 	 * 		or the break exceed the limit of the dynamic allocator. If sbrk fails, kernel should panic(...)
 	 */
 
+
+	uint32 currentBreak = kheap_break;
+
+	if(increment > 0)
+	{
+		if(ROUNDUP(kheap_break + increment, PAGE_SIZE) > kheap_limit)
+			panic("Memory limit exceeded!!!");
+		else
+		{
+			kheap_break = ROUNDUP(kheap_break + increment, PAGE_SIZE);
+
+			for(uint32 i = currentBreak; i <= kheap_break; i += PAGE_SIZE)
+			{
+				// Start from current sbrk up until the new break, allocating pages all the way
+				struct FrameInfo* frameInfoPtr = NULL;
+				allocate_frame(&frameInfoPtr);
+				map_frame(ptr_page_directory, frameInfoPtr, kheap_break, PERM_WRITEABLE);
+			}
+
+			return (void *)currentBreak;
+		}
+	}
+	else if(increment == 0)
+		return (void *)currentBreak;
+	else
+	{
+		kheap_break = currentBreak + increment; // Subtract increment from current break
+		if(kheap_break < kheap_start)
+			panic("Memory limit exceeded!!!"); // Case: going lower than start of heap
+
+		if(kheap_break <= currentBreak - PAGE_SIZE)
+		{
+			// If previous page boundary is crossed, loop over pages
+			// until the page with current break
+			uint32 decrementedBreak = ROUNDUP(kheap_break, PAGE_SIZE);
+			for(uint32 i = currentBreak; i > decrementedBreak; i -= PAGE_SIZE)
+			{
+				unmap_frame(ptr_page_directory, i);
+			}
+		}
+		currentBreak = kheap_break;
+		return (void *)currentBreak;
+	}
 	//MS2: COMMENT THIS LINE BEFORE START CODING====
 	return (void*)-1 ;
-	panic("not implemented yet");
+	//panic("not implemented yet");
 }
 
 
@@ -74,7 +125,59 @@ void* kmalloc(unsigned int size)
 	// use "isKHeapPlacementStrategyFIRSTFIT() ..." functions to check the current strategy
 
 	//change this "return" according to your answer
-	kpanic_into_prompt("kmalloc() is not implemented yet...!!");
+	//kpanic_into_prompt("kmalloc() is not implemented yet...!!");
+		if (size <= DYN_ALLOC_MAX_BLOCK_SIZE) {
+			return alloc_block_FF(size);
+		} else {
+			unsigned int num_of_pages = ROUNDUP(size ,PAGE_SIZE) / PAGE_SIZE;
+
+			uint32 count = 0 , which = -1;
+			bool found = 0;
+
+			for (uint32 page = 0 ; page < 10000000 ; page++) {
+
+				// out of range because HEAP_PAGES isn't so accurate
+				if(page * PAGE_SIZE + kheap_limit + PAGE_SIZE >=  KERNEL_HEAP_MAX)
+					break;
+
+				if (!reserved[page]) {
+					count ++;
+					if(which == -1)
+						which = page;
+				} else {
+					count = 0 , which = -1;
+				}
+
+				if(count == num_of_pages){
+					found = 1;
+					break;
+				}
+			}
+
+			if (found) {
+				last_size[which] = num_of_pages;
+
+				for (uint32 i = which ; i < which + num_of_pages ; i++){
+					reserved[i] = 1;
+					struct FrameInfo *newFrameInfoPtr = NULL;
+					uint32 currAddress = kheap_limit + PAGE_SIZE + PAGE_SIZE * i;
+
+					int returnValue = allocate_frame(&newFrameInfoPtr);
+
+					if (returnValue == E_NO_MEM)
+						return NULL;
+					else {
+						map_frame(ptr_page_directory, newFrameInfoPtr, currAddress, PERM_WRITEABLE);
+					}
+				}
+
+				uint32 address = (kheap_limit + PAGE_SIZE) + PAGE_SIZE * which;
+
+				return (void*) address;
+			} else {
+				return NULL;
+			}
+		}
 	return NULL;
 }
 
@@ -84,6 +187,10 @@ void kfree(void* virtual_address)
 	//refer to the project presentation and documentation for details
 	// Write your code here, remove the panic and write your code
 	panic("kfree() is not implemented yet...!!");
+
+	// no idea what happens if he wants to free before kheap limit
+	// no idea what happens if he wants to free before kheap limit
+	// no idea what happens if he wants to free before kheap limit
 }
 
 unsigned int kheap_virtual_address(unsigned int physical_address)
