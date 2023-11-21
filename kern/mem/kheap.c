@@ -61,9 +61,53 @@ void* sbrk(int increment)
 	 * 		or the break exceed the limit of the dynamic allocator. If sbrk fails, kernel should panic(...)
 	 */
 
+
+	uint32 currentBreak = kheap_break;
+
+	if(increment > 0)
+	{
+		if(ROUNDUP(kheap_break + increment, PAGE_SIZE) > kheap_limit)
+			panic("Memory limit exceeded!!!");
+		else
+		{
+			kheap_break = ROUNDUP(kheap_break + increment, PAGE_SIZE);
+
+			for(uint32 i = currentBreak; i <= kheap_break; i += PAGE_SIZE)
+			{
+				// Start from current sbrk up until the new break, allocating pages all the way
+				struct FrameInfo* frameInfoPtr = NULL;
+				allocate_frame(&frameInfoPtr);
+				map_frame(ptr_page_directory, frameInfoPtr, kheap_break, PERM_WRITEABLE);
+			}
+
+			return (void *)currentBreak;
+		}
+
+	}
+	else if(increment == 0)
+		return (void *)currentBreak;
+	else
+	{
+		kheap_break = currentBreak + increment; // Subtract increment from current break
+		if(kheap_break < kheap_start)
+			panic("Memory limit exceeded!!!"); // Case: going lower than start of heap
+
+		if(kheap_break <= currentBreak - PAGE_SIZE)
+		{
+			// If previous page boundary is crossed, loop over pages
+			// until the page with current break
+			uint32 decrementedBreak = ROUNDUP(kheap_break, PAGE_SIZE);
+			for(uint32 i = currentBreak; i > decrementedBreak; i -= PAGE_SIZE)
+			{
+				unmap_frame(ptr_page_directory, i);
+			}
+		}
+		currentBreak = kheap_break;
+		return (void *)currentBreak;
+	}
 	//MS2: COMMENT THIS LINE BEFORE START CODING====
-	return (void*)-1 ;
-	panic("not implemented yet");
+	//return (void*)-1 ;
+	//panic("not implemented yet");
 }
 
 
