@@ -90,6 +90,7 @@ void* sbrk(int increment)
 
 			return (void *)currentBreak;
 		}
+    
 	}
 	else if(increment == 0)
 		return (void *)currentBreak;
