@@ -8,10 +8,10 @@
 // we need to know the acutal limits correctly
 // check if mo2men added the updated test
 // to use those arrays first map the virtual address to page num we start from kheap limit + pagesize as page num 0
-const uint32 HEAP_PAGES = 10000000;
+const uint32 HEAP_PAGES = (1<<21);
 //((KERNEL_HEAP_MAX - (kheap_limit + PAGE_SIZE)) / PAGE_SIZE) + 5;
-uint32 reserved[10000000];
-uint32 last_size[10000000];
+uint32 reserved[(1<<21)];
+uint32 last_size[(1<<21)];
 
 int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate, uint32 daLimit)
 {
@@ -26,9 +26,9 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 	//Comment the following line(s) before start coding...
 	//panic("not implemented yet");
 
-	if(daStart + initSizeToAllocate > daLimit) return E_NO_MEM;
+	if(ROUNDUP(initSizeToAllocate, PAGE_SIZE) > daLimit - daStart) return E_NO_MEM;
 
-	int numberOfPages = ROUNDUP(initSizeToAllocate / PAGE_SIZE, PAGE_SIZE);
+	uint32 numberOfPages = (uint32)ROUNDUP(initSizeToAllocate, PAGE_SIZE) / PAGE_SIZE;
 
 	kheap_start = daStart;
 	kheap_break = ROUNDUP(daStart + initSizeToAllocate, PAGE_SIZE);
@@ -40,12 +40,15 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 		int returnValue = allocate_frame(&newFrameInfoPtr);
 		if(returnValue == E_NO_MEM) return E_NO_MEM;
 		else {
-			uint32 physical = to_physical_address(newFrameInfoPtr);
 			map_frame(ptr_page_directory, newFrameInfoPtr, currAddress, PERM_WRITEABLE);
 		}
 	}
 
 	initialize_dynamic_allocator(daStart, initSizeToAllocate);
+
+//	cprintf("%d %d\n", daStart, daLimit);
+
+//	cprintf("%d %d\n", kheap_start, kheap_limit);
 
 	return 0;
 }
@@ -80,17 +83,17 @@ void* sbrk(int increment)
 		{
 			kheap_break = ROUNDUP(kheap_break + increment, PAGE_SIZE);
 
-			for(uint32 i = currentBreak; i <= kheap_break; i += PAGE_SIZE)
+			for(uint32 i = currentBreak; i < kheap_break; i += PAGE_SIZE)
 			{
 				// Start from current sbrk up until the new break, allocating pages all the way
 				struct FrameInfo* frameInfoPtr = NULL;
 				allocate_frame(&frameInfoPtr);
-				map_frame(ptr_page_directory, frameInfoPtr, kheap_break, PERM_WRITEABLE);
+				map_frame(ptr_page_directory, frameInfoPtr, i, PERM_WRITEABLE);
 			}
 
 			return (void *)currentBreak;
 		}
-    
+
 	}
 	else if(increment == 0)
 		return (void *)currentBreak;
@@ -105,7 +108,7 @@ void* sbrk(int increment)
 			// If previous page boundary is crossed, loop over pages
 			// until the page with current break
 			uint32 decrementedBreak = ROUNDUP(kheap_break, PAGE_SIZE);
-			for(uint32 i = currentBreak; i > decrementedBreak; i -= PAGE_SIZE)
+			for(uint32 i = currentBreak - PAGE_SIZE; i >= decrementedBreak; i -= PAGE_SIZE)
 			{
 				unmap_frame(ptr_page_directory, i);
 			}
@@ -124,7 +127,6 @@ void* kmalloc(unsigned int size)
 	//TODO: [PROJECT'23.MS2 - #03] [1] KERNEL HEAP - kmalloc()
 	//refer to the project presentation and documentation for details
 	// use "isKHeapPlacementStrategyFIRSTFIT() ..." functions to check the current strategy
-
 	//change this "return" according to your answer
 	//kpanic_into_prompt("kmalloc() is not implemented yet...!!");
 		if (size <= DYN_ALLOC_MAX_BLOCK_SIZE) {
@@ -134,8 +136,7 @@ void* kmalloc(unsigned int size)
 
 			uint32 count = 0 , which = -1;
 			bool found = 0;
-
-			for (uint32 page = 0 ; page < 10000000 ; page++) {
+			for (uint32 page = 0 ; page < (1<<21) ; page++) {
 
 				// out of range because HEAP_PAGES isn't so accurate
 				if(page * PAGE_SIZE + kheap_limit + PAGE_SIZE >=  KERNEL_HEAP_MAX)
@@ -182,13 +183,41 @@ void* kmalloc(unsigned int size)
 	return NULL;
 }
 
-void kfree(void* virtual_address)
+void kfree(void* va)
 {
 	//TODO: [PROJECT'23.MS2 - #04] [1] KERNEL HEAP - kfree()
 	//refer to the project presentation and documentation for details
 	// Write your code here, remove the panic and write your code
-	panic("kfree() is not implemented yet...!!");
+	//	panic("kfree() is not implemented yet...!!");
+	uint32 virtual_address = (uint32) va;
 
+//	cprintf("%u %u\n", virtual_address, kheap_start);
+	if(    virtual_address < kheap_start
+		|| virtual_address >= KERNEL_HEAP_MAX
+		|| (virtual_address >= kheap_limit && virtual_address < kheap_limit+PAGE_SIZE))
+	{
+		panic("Invalid address");
+	}
+	if(virtual_address < kheap_limit){
+		free_block(va);
+		return;
+	}
+	if((virtual_address - kheap_limit - PAGE_SIZE) % PAGE_SIZE){
+		panic("Address in middle of a page");
+	}
+	uint32 firstIndex = (virtual_address - kheap_limit - PAGE_SIZE) / PAGE_SIZE;
+
+	if(!reserved[firstIndex]){
+		return;
+	}
+//	cprintf("%d \n", last_size[firstIndex]);
+	for(uint32 i = firstIndex; i < firstIndex + last_size[firstIndex]; i++){
+		uint32 *ptr_page_table;
+		struct FrameInfo* frameData = get_frame_info(ptr_page_directory, i * PAGE_SIZE + kheap_limit + PAGE_SIZE, &ptr_page_table);
+		free_frame(frameData);
+		unmap_frame(ptr_page_directory, i * PAGE_SIZE + kheap_limit + PAGE_SIZE);
+		reserved[i] = 0;
+	}
 	// no idea what happens if he wants to free before kheap limit
 	// no idea what happens if he wants to free before kheap limit
 	// no idea what happens if he wants to free before kheap limit
@@ -199,9 +228,11 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 	//TODO: [PROJECT'23.MS2 - #05] [1] KERNEL HEAP - kheap_virtual_address()
 	//refer to the project presentation and documentation for details
 	// Write your code here, remove the panic and write your code
-	panic("kheap_virtual_address() is not implemented yet...!!");
+	//	panic("kheap_virtual_address() is not implemented yet...!!");
 
 	//EFFICIENT IMPLEMENTATION ~O(1) IS REQUIRED ==================
+	struct FrameInfo* frameData = to_frame_info(physical_address);
+	return frameData->va;
 
 	//change this "return" according to your answer
 	return 0;
@@ -212,8 +243,10 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 	//TODO: [PROJECT'23.MS2 - #06] [1] KERNEL HEAP - kheap_physical_address()
 	//refer to the project presentation and documentation for details
 	// Write your code here, remove the panic and write your code
-	panic("kheap_physical_address() is not implemented yet...!!");
-
+	//	panic("kheap_physical_address() is not implemented yet...!!");
+	uint32 *ptr_page_table;
+	struct FrameInfo* frameData = get_frame_info(ptr_page_directory, virtual_address, &ptr_page_table);
+	return to_physical_address(frameData);
 	//change this "return" according to your answer
 	return 0;
 }

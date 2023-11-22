@@ -88,6 +88,7 @@ bool is_initialized = 0;
 //==================================
 void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpace)
 {
+	cprintf("Here dynamic allocator");
 	//=========================================
 	//DON'T CHANGE THESE LINES=================
 	if (initSizeOfAllocatedSpace == 0)
@@ -120,14 +121,14 @@ void *alloc_block_FF(uint32 size)
 	if(size == 0){
 		return NULL;
 	}
-
+	cprintf("Here 1");
 	if(!is_initialized){
 		uint32 required_size = size + sizeOfMetaData();
 		uint32 da_start = (uint32)sbrk(required_size);
 		uint32 da_break = (uint32)sbrk(0);
 		initialize_dynamic_allocator(da_start, da_break - da_start);
 	}
-
+	cprintf("Here 2");
 	struct BlockMetaData* block;
 	uint32 total_size = size + sizeOfMetaData();
 	LIST_FOREACH(block, &mem_blocks){
@@ -153,20 +154,30 @@ void *alloc_block_FF(uint32 size)
 			return (void *)(start + sizeOfMetaData());
 		}
 	}
-
-	uint32* tmp = (uint32 *)sbrk(total_size);
-
-	if(tmp == (uint32 *)-1){
+	cprintf("Here 3");
+	void* prevBreak = sbrk(total_size);
+	cprintf("Here 4");
+	if(prevBreak == (void *)-1){
 		return NULL;
 	} else {
-		struct BlockMetaData* new_block = (struct BlockMetaData *)((uint32)tmp);
+		struct BlockMetaData* new_block = (struct BlockMetaData *)prevBreak;
 		new_block->size = total_size;
 		new_block->is_free = 0;
+		cprintf("Here 5");
+		uint32 allocatedSize = ROUNDUP((uint32)prevBreak + total_size, PAGE_SIZE) - (uint32)prevBreak;
+		if(allocatedSize > total_size){
+			if(allocatedSize - total_size < 16){
+				new_block += allocatedSize - total_size;
+			} else {
+				struct BlockMetaData* new_block = (struct BlockMetaData *)prevBreak;
+				new_block->size = allocatedSize - total_size;
+				new_block->is_free = 1;
+			}
+		}
 		LIST_INSERT_TAIL(&mem_blocks, new_block);
-
-		return tmp;
+		return prevBreak + 16;
 	}
-
+	cprintf("Here 6");
 	return NULL;
 }
 //=========================================
