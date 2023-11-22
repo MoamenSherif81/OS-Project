@@ -46,9 +46,6 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 
 	initialize_dynamic_allocator(daStart, initSizeToAllocate);
 
-//	cprintf("%d %d\n", daStart, daLimit);
-
-//	cprintf("%d %d\n", kheap_start, kheap_limit);
 
 	return 0;
 }
@@ -191,7 +188,6 @@ void kfree(void* va)
 	//	panic("kfree() is not implemented yet...!!");
 	uint32 virtual_address = (uint32) va;
 
-//	cprintf("%u %u\n", virtual_address, kheap_start);
 	if(    virtual_address < kheap_start
 		|| virtual_address >= KERNEL_HEAP_MAX
 		|| (virtual_address >= kheap_limit && virtual_address < kheap_limit+PAGE_SIZE))
@@ -210,7 +206,6 @@ void kfree(void* va)
 	if(!reserved[firstIndex]){
 		return;
 	}
-//	cprintf("%d \n", last_size[firstIndex]);
 	for(uint32 i = firstIndex; i < firstIndex + last_size[firstIndex]; i++){
 		uint32 *ptr_page_table;
 		struct FrameInfo* frameData = get_frame_info(ptr_page_directory, i * PAGE_SIZE + kheap_limit + PAGE_SIZE, &ptr_page_table);
