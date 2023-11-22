@@ -91,9 +91,28 @@ void free(void* virtual_address)
 {
 	//TODO: [PROJECT'23.MS2 - #11] [2] USER HEAP - free() [User Side]
 	// Write your code here, remove the panic and write your code
-	panic("free() is not implemented yet...!!");
+	//	panic("free() is not implemented yet...!!");
+	void* sgbrk = sbrk(0);
+	uint32 hard_limit = sys_get_uheap_limit();
+	if(virtual_address >= (void*)USER_HEAP_START
+			&& virtual_address < sgbrk)
+	{
+		free(virtual_address);
+	}
+	else if(virtual_address>=(void*)(hard_limit+PAGE_SIZE)
+			&& virtual_address < (void*)USER_HEAP_MAX)
+	{
+		uint32 which = ((uint32)virtual_address-hard_limit-PAGE_SIZE)/PAGE_SIZE;
+		for(int i=0;i<start[which];i++)
+		{
+			reserved[which+i]=0;
+		}
+		sys_free_user_mem((uint32)virtual_address,start[which]);
+		start[which]=0;
+	}
+	else
+		panic("Invalid Address!!!!!");
 }
-
 
 //=================================
 // [4] ALLOCATE SHARED VARIABLE:
