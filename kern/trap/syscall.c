@@ -281,6 +281,10 @@ void sys_allocate_chunk(uint32 virtual_address, uint32 size, uint32 perms)
 }
 
 //2014
+uint32 sys_get_uheap_limit()
+{
+  return curenv->hard_limit;
+}
 void sys_move_user_mem(uint32 src_virtual_address, uint32 dst_virtual_address, uint32 size)
 {
 	move_user_mem(curenv, src_virtual_address, dst_virtual_address, size);
@@ -741,10 +745,16 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 
 	case SYS_check_WS_list:
 		return sys_check_WS_list((uint32*)a1, (int)a2, (uint32)a3, (bool)a4);
+//
+	case SYS_get_uheap_limit:
+	  sys_get_uheap_limit();
+	  return curenv->hard_limit;
+	  break;
 
 	case NSYSCALLS:
 		return 	-E_INVAL;
 		break;
+
 	}
 	//panic("syscall not implemented");
 	return -E_INVAL;
