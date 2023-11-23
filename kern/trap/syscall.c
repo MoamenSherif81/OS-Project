@@ -281,6 +281,10 @@ void sys_allocate_chunk(uint32 virtual_address, uint32 size, uint32 perms)
 }
 
 //2014
+uint32 sys_get_uheap_limit()
+{
+  return curenv->hard_limit;
+}
 void sys_move_user_mem(uint32 src_virtual_address, uint32 dst_virtual_address, uint32 size)
 {
 	move_user_mem(curenv, src_virtual_address, dst_virtual_address, size);
@@ -482,7 +486,7 @@ void* sys_sbrk(int increment)
 {
 	//TODO: [PROJECT'23.MS2 - #08] [2] USER HEAP - Block Allocator - sys_sbrk() [Kernel Side]
 	//MS2: COMMENT THIS LINE BEFORE START CODING====
-	return (void*)-1 ;
+	//return (void*)-1 ;
 	//====================================================
 
 	/*2023*/
@@ -506,6 +510,35 @@ void* sys_sbrk(int increment)
 	 */
 	struct Env* env = curenv; //the current running Environment to adjust its break limit
 
+	uint32 currentBreak = curenv->segment_break;
+	uint32 envBreak = curenv->segment_break;
+
+	if(increment > 0) // Case: positive increment
+	{
+		if(ROUNDUP(envBreak + increment, PAGE_SIZE) > curenv->hard_limit)
+			return (void *)-1; // Case: Segment break passes limit of env
+		else
+		{
+			envBreak = ROUNDUP(envBreak + increment, PAGE_SIZE); // Incrment break WITHOUT allocating frames
+			return (void *)currentBreak;
+		}
+	}
+	else if(increment == 0)
+		return (void *)currentBreak; // Case: No increment, return current break as it is
+	else // Case: Negative Increment
+	{
+		uint32 decrementedBreak = currentBreak + increment;
+		if(decrementedBreak < curenv->start) // Case: Segment break goes below Start of env, return -1
+			return (void *)-1;
+		if(decrementedBreak <= currentBreak - PAGE_SIZE) // Case: Segment break passes page boundary, deallocate previous pages
+			{
+			uint32 decrementPageBound = ROUNDUP(decrementedBreak, PAGE_SIZE);
+			for(uint32 i = currentBreak - PAGE_SIZE; i >= decrementPageBound; i -= PAGE_SIZE)
+				unmap_frame(ptr_page_directory, i);
+		}
+		currentBreak = decrementedBreak;
+		return (void *)currentBreak;
+	}
 
 }
 
@@ -741,10 +774,16 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 
 	case SYS_check_WS_list:
 		return sys_check_WS_list((uint32*)a1, (int)a2, (uint32)a3, (bool)a4);
+//
+	case SYS_get_uheap_limit:
+	  sys_get_uheap_limit();
+	  return curenv->hard_limit;
+	  break;
 
 	case NSYSCALLS:
 		return 	-E_INVAL;
 		break;
+
 	}
 	//panic("syscall not implemented");
 	return -E_INVAL;

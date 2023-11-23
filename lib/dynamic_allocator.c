@@ -88,6 +88,7 @@ bool is_initialized = 0;
 //==================================
 void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpace)
 {
+	cprintf("Here dynamic allocator");
 	//=========================================
 	//DON'T CHANGE THESE LINES=================
 	if (initSizeOfAllocatedSpace == 0)
@@ -127,7 +128,6 @@ void *alloc_block_FF(uint32 size)
 		uint32 da_break = (uint32)sbrk(0);
 		initialize_dynamic_allocator(da_start, da_break - da_start);
 	}
-
 	struct BlockMetaData* block;
 	uint32 total_size = size + sizeOfMetaData();
 	LIST_FOREACH(block, &mem_blocks){
@@ -135,7 +135,7 @@ void *alloc_block_FF(uint32 size)
 			uint32 start = (uint32)(block);
 			block->is_free = 0;
 			return (void *)(start + sizeOfMetaData());
-		} else if(block->size >= total_size && block->is_free){
+		} else if(block->size > total_size && block->is_free){
 			uint32 start = (uint32)(block);
 			uint32 nblksz = block->size - total_size;
 			if(nblksz>=sizeOfMetaData()){
@@ -149,24 +149,29 @@ void *alloc_block_FF(uint32 size)
 			block->is_free = 0;
 			block->size = total_size;
 
-
 			return (void *)(start + sizeOfMetaData());
 		}
 	}
-
-	uint32* tmp = (uint32 *)sbrk(total_size);
-
-	if(tmp == (uint32 *)-1){
+	void* prevBreak = sbrk(total_size);
+	if(prevBreak == (void *)-1){
 		return NULL;
 	} else {
-		struct BlockMetaData* new_block = (struct BlockMetaData *)((uint32)tmp);
+		struct BlockMetaData* new_block = (struct BlockMetaData *)prevBreak;
 		new_block->size = total_size;
 		new_block->is_free = 0;
+		uint32 allocatedSize = ROUNDUP((uint32)prevBreak + total_size, PAGE_SIZE) - (uint32)prevBreak;
+		if(allocatedSize > total_size){
+			if(allocatedSize - total_size < 16){
+				new_block += allocatedSize - total_size;
+			} else {
+				struct BlockMetaData* new_block = (struct BlockMetaData *)prevBreak;
+				new_block->size = allocatedSize - total_size;
+				new_block->is_free = 1;
+			}
+		}
 		LIST_INSERT_TAIL(&mem_blocks, new_block);
-
-		return tmp;
+		return prevBreak + 16;
 	}
-
 	return NULL;
 }
 //=========================================
@@ -264,6 +269,7 @@ void free_block(void *va)
 		curBlkMetaData->size+=next->size;
 		next->size=0;
 		next->is_free=0;
+		LIST_REMOVE(&mem_blocks, next);
 	}
 	struct BlockMetaData *prev = LIST_PREV(curBlkMetaData);
 	if(prev != NULL && prev->is_free)
@@ -271,6 +277,7 @@ void free_block(void *va)
 		prev->size+=curBlkMetaData->size;
 		curBlkMetaData->size=0;
 		curBlkMetaData->is_free=0;
+		LIST_REMOVE(&mem_blocks, curBlkMetaData);
 	}
 	return;
 }
