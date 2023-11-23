@@ -117,15 +117,11 @@ uint32 calculate_required_frames(uint32* page_directory, uint32 sva, uint32 size
 //=====================================
 void allocate_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 {
-	/*=============================================================================*/
-	//TODO: [PROJECT'23.MS2 - #10] [2] USER HEAP - allocate_user_mem() [Kernel Side]
-	/*REMOVE THESE LINES BEFORE START CODING */
-	inctst();
+	for(uint32 i=virtual_address , j=0 ; j<size ; j++, i+= PAGE_SIZE){
+		create_page_table(ptr_page_directory,i);
+	}
 	return;
-	/*=============================================================================*/
 
-	// Write your code here, remove the panic and write your code
-	panic("allocate_user_mem() is not implemented yet...!!");
 }
 
 //=====================================
@@ -136,17 +132,23 @@ void free_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 	/*==========================================================================*/
 	//TODO: [PROJECT'23.MS2 - #12] [2] USER HEAP - free_user_mem() [Kernel Side]
 	/*REMOVE THESE LINES BEFORE START CODING */
-	inctst();
-	return;
+//	inctst();
+//	return;
 	/*==========================================================================*/
 
 	// Write your code here, remove the panic and write your code
-	panic("free_user_mem() is not implemented yet...!!");
+//	panic("free_user_mem() is not implemented yet...!!");
 
 	//TODO: [PROJECT'23.MS2 - BONUS#2] [2] USER HEAP - free_user_mem() IN O(1): removing page from WS List instead of searching the entire list
+	for(int i=virtual_address,j=0;j<size;j++,i+=PAGE_SIZE)
+	{
+		pd_set_table_unused(ptr_page_directory,i);
+		pf_remove_env_page(e , i);
+		env_page_ws_invalidate(e , i);
+	}
+
 
 }
-
 //=====================================
 // 2) FREE USER MEMORY (BUFFERING):
 //=====================================

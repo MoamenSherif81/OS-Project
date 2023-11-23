@@ -33,6 +33,8 @@ void* sbrk(int increment)
 //=================================
 // [2] ALLOCATE SPACE IN USER HEAP:
 //=================================
+int start[1<<20];
+bool reserved[1<<20];
 void* malloc(uint32 size)
 {
 	//==============================================================
@@ -42,10 +44,43 @@ void* malloc(uint32 size)
 	//==============================================================
 	//TODO: [PROJECT'23.MS2 - #09] [2] USER HEAP - malloc() [User Side]
 	// Write your code here, remove the panic and write your code
-	panic("malloc() is not implemented yet...!!");
+	if(size <=DYN_ALLOC_MAX_BLOCK_SIZE){
+		return alloc_block_FF(size);
+	}
+	uint32 numOfPages = ROUNDUP(size,PAGE_SIZE)/PAGE_SIZE;
+	uint32 count = 0 , which = -1;
+	bool found = 0;
+    uint32 hard_limit= sys_get_uheap_limit();
+	for (uint32 page = 0 ; page < (1<<20) ; page++) {
+
+		// out of range because HEAP_PAGES isn't so accurate
+		if(hard_limit +PAGE_SIZE +(PAGE_SIZE*page)>=  USER_HEAP_MAX)
+			break;
+
+		if (!reserved[page]) {
+			count ++;
+			if(which == -1)
+				which = page;
+		} else {
+			count = 0 , which = -1;
+		}
+
+		if(count == numOfPages){
+			found = 1;
+			break;
+		}
+	}
+	if(found){
+		start[which]=numOfPages;
+		for(int i=which ;i<numOfPages+which;i++)
+			reserved[i]=1;
+		sys_allocate_user_mem(hard_limit +PAGE_SIZE +(PAGE_SIZE*which) ,numOfPages);
+		return (void *) hard_limit +PAGE_SIZE +(PAGE_SIZE*which);
+
+	}
+
 	return NULL;
-	//Use sys_isUHeapPlacementStrategyFIRSTFIT() and	sys_isUHeapPlacementStrategyBESTFIT()
-	//to check the current strategy
+
 
 }
 
@@ -56,9 +91,28 @@ void free(void* virtual_address)
 {
 	//TODO: [PROJECT'23.MS2 - #11] [2] USER HEAP - free() [User Side]
 	// Write your code here, remove the panic and write your code
-	panic("free() is not implemented yet...!!");
+	//	panic("free() is not implemented yet...!!");
+	void* sgbrk = sbrk(0);
+	uint32 hard_limit = sys_get_uheap_limit();
+	if(virtual_address >= (void*)USER_HEAP_START
+			&& virtual_address < sgbrk)
+	{
+		free(virtual_address);
+	}
+	else if(virtual_address>=(void*)(hard_limit+PAGE_SIZE)
+			&& virtual_address < (void*)USER_HEAP_MAX)
+	{
+		uint32 which = ((uint32)virtual_address-hard_limit-PAGE_SIZE)/PAGE_SIZE;
+		for(int i=0;i<start[which];i++)
+		{
+			reserved[which+i]=0;
+		}
+		sys_free_user_mem((uint32)virtual_address,start[which]);
+		start[which]=0;
+	}
+	else
+		panic("Invalid Address!!!!!");
 }
-
 
 //=================================
 // [4] ALLOCATE SHARED VARIABLE:

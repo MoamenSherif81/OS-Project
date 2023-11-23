@@ -57,6 +57,7 @@ enum
 	SYS_free_user_mem,
 	SYS_allocate_user_mem,
 	//=====================================================================
+	SYS_get_uheap_limit,
 	NSYSCALLS
 };
 

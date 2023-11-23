@@ -369,3 +369,7 @@ void sys_allocate_user_mem(uint32 virtual_address, uint32 size)
 
 }
 
+uint32 sys_get_uheap_limit()
+{
+  return syscall(SYS_get_uheap_limit, 0, 0, 0, 0, 0);
+}
