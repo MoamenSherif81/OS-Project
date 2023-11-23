@@ -38,8 +38,18 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 		uint32 currAddress = daStart + PAGE_SIZE * i;
 		struct FrameInfo *newFrameInfoPtr = NULL;
 		int returnValue = allocate_frame(&newFrameInfoPtr);
-		if(returnValue == E_NO_MEM) return E_NO_MEM;
+		if(returnValue == E_NO_MEM) {
+			free_frame(newFrameInfoPtr);
+			for(uint32 j = 0; j < i; j++){
+				uint32 address = daStart + PAGE_SIZE * j;
+				uint32 *ptr_page_table;
+				struct FrameInfo* frameData = get_frame_info(ptr_page_directory, address, &ptr_page_table);
+				unmap_frame(ptr_page_directory, address);
+			}
+			return E_NO_MEM;
+		}
 		else {
+			newFrameInfoPtr->va = currAddress;
 			map_frame(ptr_page_directory, newFrameInfoPtr, currAddress, PERM_WRITEABLE);
 		}
 	}
@@ -85,6 +95,7 @@ void* sbrk(int increment)
 				// Start from current sbrk up until the new break, allocating pages all the way
 				struct FrameInfo* frameInfoPtr = NULL;
 				allocate_frame(&frameInfoPtr);
+				frameInfoPtr->va = i;
 				map_frame(ptr_page_directory, frameInfoPtr, i, PERM_WRITEABLE);
 			}
 
@@ -162,10 +173,20 @@ void* kmalloc(unsigned int size)
 					uint32 currAddress = kheap_limit + PAGE_SIZE + PAGE_SIZE * i;
 
 					int returnValue = allocate_frame(&newFrameInfoPtr);
-
-					if (returnValue == E_NO_MEM)
+					if (returnValue == E_NO_MEM){
+						free_frame(newFrameInfoPtr);
+						for(uint32 j = which; j < i; j++){
+							uint32 address = kheap_limit + PAGE_SIZE + PAGE_SIZE * j;
+							uint32 *ptr_page_table;
+							struct FrameInfo* frameData = get_frame_info(ptr_page_directory, address, &ptr_page_table);
+							unmap_frame(ptr_page_directory, address);
+							reserved[j] = 0;
+						}
+						reserved[i] = 0;
 						return NULL;
+					}
 					else {
+						newFrameInfoPtr->va = currAddress;
 						map_frame(ptr_page_directory, newFrameInfoPtr, currAddress, PERM_WRITEABLE);
 					}
 				}
@@ -209,7 +230,7 @@ void kfree(void* va)
 	for(uint32 i = firstIndex; i < firstIndex + last_size[firstIndex]; i++){
 		uint32 *ptr_page_table;
 		struct FrameInfo* frameData = get_frame_info(ptr_page_directory, i * PAGE_SIZE + kheap_limit + PAGE_SIZE, &ptr_page_table);
-		free_frame(frameData);
+
 		unmap_frame(ptr_page_directory, i * PAGE_SIZE + kheap_limit + PAGE_SIZE);
 		reserved[i] = 0;
 	}
@@ -228,9 +249,14 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 	//EFFICIENT IMPLEMENTATION ~O(1) IS REQUIRED ==================
 
 	uint32 offset = physical_address % PAGE_SIZE;
-	struct FrameInfo* frameData = to_frame_info(physical_address);
+	struct FrameInfo* frameData = to_frame_info(physical_address-offset);
+	if(frameData->references == 0){
+		return 0;
+	}
 
-	return (frameData->va << 12) + offset;
+	return ((frameData->va >> 12) << 12) + offset;
+
+//	cprintf("%u \n", ((frameData->va >> 12) << 12) + offset);
 	//	uint32 frame_num = physical_address >> 12;
 //	frame_num <<= 12;
 //	uint32 virtual_address = frameData->va;
