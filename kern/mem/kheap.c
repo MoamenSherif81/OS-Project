@@ -226,11 +226,18 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 	//	panic("kheap_virtual_address() is not implemented yet...!!");
 
 	//EFFICIENT IMPLEMENTATION ~O(1) IS REQUIRED ==================
-	struct FrameInfo* frameData = to_frame_info(physical_address);
-	return frameData->va;
 
-	//change this "return" according to your answer
-	return 0;
+	uint32 offset = physical_address % PAGE_SIZE;
+	struct FrameInfo* frameData = to_frame_info(physical_address);
+
+	return (frameData->va << 12) + offset;
+	//	uint32 frame_num = physical_address >> 12;
+//	frame_num <<= 12;
+//	uint32 virtual_address = frameData->va;
+
+//	virtual_address >>= 12;
+//	virtual_address <<= 12;
+//	return virtual_address + physical_address % PAGE_SIZE;
 }
 
 unsigned int kheap_physical_address(unsigned int virtual_address)
@@ -239,11 +246,14 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 	//refer to the project presentation and documentation for details
 	// Write your code here, remove the panic and write your code
 	//	panic("kheap_physical_address() is not implemented yet...!!");
-	uint32 *ptr_page_table;
-	struct FrameInfo* frameData = get_frame_info(ptr_page_directory, virtual_address, &ptr_page_table);
-	return to_physical_address(frameData);
-	//change this "return" according to your answer
-	return 0;
+
+	uint32 offset = virtual_address % PAGE_SIZE;
+	uint32* page_table;
+	get_page_table(ptr_page_directory,(uint32) virtual_address, &page_table);
+	uint32 page_table_entry = page_table[PTX(virtual_address)];
+	page_table_entry >>= 12;
+	page_table_entry <<= 12;
+	return page_table_entry + offset;
 }
 
 
