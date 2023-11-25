@@ -12,7 +12,6 @@ void _main(void)
 {
 
 	//	cprintf("envID = %d\n",envID);
-
 	char arr[PAGE_SIZE*1024*4];
 	bool found ;
 	//("STEP 0: checking Initial WS entries ...\n");
