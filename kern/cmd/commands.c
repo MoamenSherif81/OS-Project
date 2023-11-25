@@ -477,7 +477,7 @@ int commnad_load_env(int number_of_arguments, char **arguments)
 
 	sched_new_env(env) ;
 
-	cprintf("\nEnvironment Id= %d\n",env->env_id);
+	cprintf("\nEnvironment Id=%d\n",env->env_id);
 	return 0;
 }
 
