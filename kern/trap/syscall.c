@@ -19,6 +19,7 @@
 
 extern uint8 bypassInstrLength ;
 
+#define markedBit (1<<7)
 /*******************************/
 /* STRING I/O SYSTEM CALLS */
 /*******************************/
@@ -522,7 +523,9 @@ void* sys_sbrk(int increment)
 			envBreak = ROUNDUP(envBreak + increment, PAGE_SIZE); // Incrment break WITHOUT allocating frames
 			for(uint32 i = currentBreak; i < envBreak; i += PAGE_SIZE)
 			{
-				pt_set_page_permissions(env->env_page_directory, i, PERM_AVAILABLE, NULL);
+				//pt_set_page_permissions(env->env_page_directory, i, PERM_AVAILABLE, NULL);
+				markedBit | (1);
+				i = i & markedBit;
 			}
 
 			return (void *)currentBreak;
@@ -540,7 +543,9 @@ void* sys_sbrk(int increment)
 			uint32 decrementPageBound = ROUNDUP(decrementedBreak, PAGE_SIZE);
 			for(uint32 i = currentBreak - PAGE_SIZE; i >= decrementPageBound; i -= PAGE_SIZE)
 			{
-				pt_set_page_permissions(env->env_page_directory, i, NULL, PERM_AVAILABLE);
+				//pt_set_page_permissions(env->env_page_directory, i, NULL, PERM_AVAILABLE);
+				markedBit & (0);
+				i = i & markedBit;
 				unmap_frame(ptr_page_directory, i);
 			}
 		}
