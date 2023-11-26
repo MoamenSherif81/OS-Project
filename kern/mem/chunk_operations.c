@@ -118,6 +118,7 @@ uint32 calculate_required_frames(uint32* page_directory, uint32 sva, uint32 size
 void allocate_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 {
 	for(uint32 i=virtual_address , j=0 ; j<size ; j++, i+= PAGE_SIZE){
+
 		create_page_table(ptr_page_directory,i);
 	}
 	return;

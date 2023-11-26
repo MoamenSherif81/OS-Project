@@ -520,6 +520,11 @@ void* sys_sbrk(int increment)
 		else
 		{
 			envBreak = ROUNDUP(envBreak + increment, PAGE_SIZE); // Incrment break WITHOUT allocating frames
+			for(uint32 i = currentBreak; i < envBreak; i += PAGE_SIZE)
+			{
+				pt_set_page_permissions(env->env_page_directory, i, PERM_AVAILABLE, NULL);
+			}
+
 			return (void *)currentBreak;
 		}
 	}
@@ -534,7 +539,10 @@ void* sys_sbrk(int increment)
 			{
 			uint32 decrementPageBound = ROUNDUP(decrementedBreak, PAGE_SIZE);
 			for(uint32 i = currentBreak - PAGE_SIZE; i >= decrementPageBound; i -= PAGE_SIZE)
+			{
+				pt_set_page_permissions(env->env_page_directory, i, NULL, PERM_AVAILABLE);
 				unmap_frame(ptr_page_directory, i);
+			}
 		}
 		currentBreak = decrementedBreak;
 		return (void *)currentBreak;

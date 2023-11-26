@@ -37,16 +37,17 @@ int start[1<<20];
 bool reserved[1<<20];
 void* malloc(uint32 size)
 {
+	cprintf("here we shit \n");
 	//==============================================================
 	//DON'T CHANGE THIS CODE========================================
 	InitializeUHeap();
 	if (size == 0) return NULL ;
 	//==============================================================
 	//TODO: [PROJECT'23.MS2 - #09] [2] USER HEAP - malloc() [User Side]
-	// Write your code here, remove the panic and write your code
 	if(size <=DYN_ALLOC_MAX_BLOCK_SIZE){
 		return alloc_block_FF(size);
 	}
+
 	uint32 numOfPages = ROUNDUP(size,PAGE_SIZE)/PAGE_SIZE;
 	uint32 count = 0 , which = -1;
 	bool found = 0;
@@ -76,7 +77,6 @@ void* malloc(uint32 size)
 			reserved[i]=1;
 		sys_allocate_user_mem(hard_limit +PAGE_SIZE +(PAGE_SIZE*which) ,numOfPages);
 		return (void *) hard_limit +PAGE_SIZE +(PAGE_SIZE*which);
-
 	}
 
 	return NULL;
