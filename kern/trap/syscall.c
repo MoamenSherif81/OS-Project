@@ -19,7 +19,7 @@
 
 extern uint8 bypassInstrLength ;
 
-#define markedBit (1<<7)
+
 /*******************************/
 /* STRING I/O SYSTEM CALLS */
 /*******************************/
@@ -483,6 +483,7 @@ void sys_bypassPageFault(uint8 instrLength)
 /* DYNAMIC ALLOCATOR SYSTEM CALLS */
 /**********************************/
 /*2024*/
+#define markedBit (PERM_MODIFIED<<1)
 void* sys_sbrk(int increment)
 {
 	//TODO: [PROJECT'23.MS2 - #08] [2] USER HEAP - Block Allocator - sys_sbrk() [Kernel Side]
@@ -516,16 +517,21 @@ void* sys_sbrk(int increment)
 
 	if(increment > 0) // Case: positive increment
 	{
+
 		if(ROUNDUP(envBreak + increment, PAGE_SIZE) > curenv->hard_limit)
 			return (void *)-1; // Case: Segment break passes limit of env
 		else
 		{
-			envBreak = ROUNDUP(envBreak + increment, PAGE_SIZE); // Incrment break WITHOUT allocating frames
+			envBreak = ROUNDUP(envBreak + increment, PAGE_SIZE); // Increment break WITHOUT allocating frames
+
 			for(uint32 i = currentBreak; i < envBreak; i += PAGE_SIZE)
 			{
-				//pt_set_page_permissions(env->env_page_directory, i, PERM_AVAILABLE, NULL);
-				markedBit | (1);
-				i = i & markedBit;
+
+				uint32 * page_table;
+				get_page_table(curenv->env_page_directory ,(uint32)i, &page_table);
+
+				page_table[PTX(i)] |= PERM_AVAILABLE;
+
 			}
 
 			return (void *)currentBreak;

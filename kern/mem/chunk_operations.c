@@ -115,14 +115,23 @@ uint32 calculate_required_frames(uint32* page_directory, uint32 sva, uint32 size
 //=====================================
 // 1) ALLOCATE USER MEMORY:
 //=====================================
+#define markedBit (1<<7) // 1000 0000
 void allocate_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 {
 	for(uint32 i=virtual_address , j=0 ; j<size ; j++, i+= PAGE_SIZE){
-
-		create_page_table(ptr_page_directory,i);
+		uint32 * page_table;
+		get_page_table(e->env_page_directory ,(uint32)i, &page_table);
+		if(*page_table == TABLE_NOT_EXIST){
+			create_page_table(e->env_page_directory,i);
+			get_page_table(e->env_page_directory ,(uint32)i, &page_table);
+		}
+//		allah a3lm al two lines dol s7 wla l2
+		page_table[PTX(virtual_address)]>>=12;
+		page_table[PTX(virtual_address)]<<=12;
+//		di al mark bta3 al page b al bit al 7
+		page_table[PTX(virtual_address)] |= markedBit;
 	}
 	return;
-
 }
 
 //=====================================
