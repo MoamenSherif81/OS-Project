@@ -86,6 +86,8 @@ bool is_initialized = 0;
 //==================================
 // [1] INITIALIZE DYNAMIC ALLOCATOR:
 //==================================
+
+
 void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpace)
 {
 	//=========================================
@@ -113,6 +115,9 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpac
 //=========================================
 // [4] ALLOCATE BLOCK BY FIRST FIT:
 //=========================================
+bool consist = 0;
+uint32 last_size;
+uint32 last_addr;
 void *alloc_block_FF(uint32 size)
 {
     //TODO: [PROJECT'23.MS1 - #6] [3] DYNAMIC ALLOCATOR - alloc_block_FF()
@@ -128,34 +133,76 @@ void *alloc_block_FF(uint32 size)
         uint32 da_break = (uint32)sbrk(0);
         initialize_dynamic_allocator(da_start, da_break - da_start);
     }
-    struct BlockMetaData* block;
     uint32 total_size = size + sizeOfMetaData();
-    LIST_FOREACH(block, &mem_blocks){
-        if(block->size == total_size && block->is_free){
-            uint32 start = (uint32)(block);
-            block->is_free = 0;
-            return (void *)(start + sizeOfMetaData());
-        } else if(block->size > total_size && block->is_free){
-            uint32 start = (uint32)(block);
-            uint32 nblksz = block->size - total_size;
-            if( nblksz >= sizeOfMetaData()){
-                struct BlockMetaData* new_block = (struct BlockMetaData *)((uint32)block + total_size);
-                new_block->size = nblksz;
-                new_block->is_free = 1;
-                LIST_INSERT_AFTER(&mem_blocks, block, new_block);
-            }
-            else{
-                total_size += nblksz;
-            }
-            block->is_free = 0;
-            block->size = total_size;
-            return (void *)(start + sizeOfMetaData());
-        }
-    }
+    uint32 temp = last_size;
+    last_size = total_size;
 
+    if(consist && total_size >= temp)
+    {
+    	struct BlockMetaData* block = (struct BlockMetaData *)last_addr;
+    	while(block != NULL)
+    	{
+    		if(block->size == total_size && block->is_free){
+				uint32 start = (uint32)(block);
+				block->is_free = 0;
+				last_addr = start;
+				consist = 1;
+				return (void *)(start + sizeOfMetaData());
+			} else if(block->size > total_size && block->is_free){
+				uint32 start = (uint32)(block);
+				uint32 nblksz = block->size - total_size;
+				if( nblksz >= sizeOfMetaData()){
+					struct BlockMetaData* new_block = (struct BlockMetaData *)((uint32)block + total_size);
+					new_block->size = nblksz;
+					new_block->is_free = 1;
+					LIST_INSERT_AFTER(&mem_blocks, block, new_block);
+				}
+				else{
+					total_size += nblksz;
+				}
+				block->is_free = 0;
+				block->size = total_size;
+				last_addr = start;
+				consist = 1;
+				return (void *)(start + sizeOfMetaData());
+			}
+    		block = LIST_NEXT(block);
+    	}
+    }
+    else
+    {
+		struct BlockMetaData* block;
+		LIST_FOREACH(block, &mem_blocks){
+			if(block->size == total_size && block->is_free){
+				uint32 start = (uint32)(block);
+				block->is_free = 0;
+				last_addr = start;
+				consist = 1;
+				return (void *)(start + sizeOfMetaData());
+			} else if(block->size > total_size && block->is_free){
+				uint32 start = (uint32)(block);
+				uint32 nblksz = block->size - total_size;
+				if( nblksz >= sizeOfMetaData()){
+					struct BlockMetaData* new_block = (struct BlockMetaData *)((uint32)block + total_size);
+					new_block->size = nblksz;
+					new_block->is_free = 1;
+					LIST_INSERT_AFTER(&mem_blocks, block, new_block);
+				}
+				else{
+					total_size += nblksz;
+				}
+				block->is_free = 0;
+				block->size = total_size;
+				last_addr = start;
+				consist = 1;
+				return (void *)(start + sizeOfMetaData());
+			}
+		}
+    }
     void* prevBreak = sbrk(total_size);
 
     if (prevBreak == (void *)-1){
+    	consist = 0;
         return NULL;
     } else {
         struct BlockMetaData* new_block = (struct BlockMetaData *)prevBreak ;
@@ -177,6 +224,8 @@ void *alloc_block_FF(uint32 size)
         } else {
             LIST_INSERT_TAIL(&mem_blocks, new_block);
         }
+        last_addr = (uint32)prevBreak;
+        consist = 1;
         return prevBreak + sizeOfMetaData();
     }
 }
@@ -267,7 +316,7 @@ void free_block(void *va)
 //	panic("free_block is not implemented yet");
 	if (va == NULL)
 		return;
-
+	consist = 0;
 	struct BlockMetaData *curBlkMetaData = ((struct BlockMetaData *)va - 1) ;
 	curBlkMetaData->is_free = 1;
 	struct BlockMetaData *next = LIST_NEXT(curBlkMetaData);

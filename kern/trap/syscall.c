@@ -509,17 +509,29 @@ void* sys_sbrk(int increment)
 	 * 		You might have to undo any operations you have done so far in this case.
 	 */
 	struct Env* env = curenv; //the current running Environment to adjust its break limit
-
-	uint32 currentBreak = curenv->segment_break;
-	uint32 envBreak = curenv->segment_break;
-
+	uint32 currentBreak = env->segment_break;
+	uint32 envBreak = env->segment_break;
 	if(increment > 0) // Case: positive increment
 	{
-		if(ROUNDUP(envBreak + increment, PAGE_SIZE) > curenv->hard_limit)
+		long long new_limit = envBreak;
+		increment = ROUNDUP(increment , PAGE_SIZE);
+		new_limit += increment;
+		if(new_limit > env->hard_limit){
 			return (void *)-1; // Case: Segment break passes limit of env
+		}
 		else
 		{
 			envBreak = ROUNDUP(envBreak + increment, PAGE_SIZE); // Incrment break WITHOUT allocating frames
+			for(uint32 i = currentBreak ;i < envBreak; i += PAGE_SIZE){
+				uint32 *page_table;
+				int ret = get_page_table(env->env_page_directory ,(uint32)i, &page_table);
+				if(ret == TABLE_NOT_EXIST){
+					create_page_table(env->env_page_directory,i);
+					get_page_table(env->env_page_directory ,(uint32)i, &page_table);
+				}
+				page_table[PTX(i)] |= PERM_AVAILABLE;
+			}
+			env->segment_break = envBreak;
 			return (void *)currentBreak;
 		}
 	}
@@ -528,7 +540,7 @@ void* sys_sbrk(int increment)
 	else // Case: Negative Increment
 	{
 		uint32 decrementedBreak = currentBreak + increment;
-		if(decrementedBreak < curenv->start) // Case: Segment break goes below Start of env, return -1
+		if(decrementedBreak < env->start) // Case: Segment break goes below Start of env, return -1
 			return (void *)-1;
 		if(decrementedBreak <= currentBreak - PAGE_SIZE) // Case: Segment break passes page boundary, deallocate previous pages
 			{
@@ -536,8 +548,8 @@ void* sys_sbrk(int increment)
 			for(uint32 i = currentBreak - PAGE_SIZE; i >= decrementPageBound; i -= PAGE_SIZE)
 				unmap_frame(ptr_page_directory, i);
 		}
-		currentBreak = decrementedBreak;
-		return (void *)currentBreak;
+		env->segment_break = decrementedBreak;
+		return (void *) env->segment_break;
 	}
 
 }
@@ -556,8 +568,7 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 	/*2023*/
 	//TODO: [PROJECT'23.MS1 - #4] [2] SYSTEM CALLS - Add suitable code here
 	case SYS_sbrk:
-		sys_sbrk((uint32)a1);
-		return 0;
+		return (uint32)sys_sbrk((uint32)a1);
 		break;
 
 	case SYS_free_user_mem:

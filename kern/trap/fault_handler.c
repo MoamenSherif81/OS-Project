@@ -75,7 +75,7 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
 
 void page_fault_handler(struct Env * curenv, uint32 fault_va)
 {
-	   cprintf("fault d5l\n");
+
 #if USE_KHEAP
 		struct WorkingSetElement *victimWSElement = NULL;
 		uint32 wsSize = LIST_SIZE(&(curenv->page_WS_list));
@@ -89,27 +89,33 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 		struct FrameInfo  *ptrFrameInfo ;
 		int perms = pt_get_page_permissions(curenv->env_page_directory, fault_va);
 		int ret = allocate_frame(&ptrFrameInfo);
-		if(ret==E_NO_MEM){
+		if (ret == E_NO_MEM){
 			panic("ana m4 3arfni");
 		}
 		map_frame(curenv->env_page_directory,ptrFrameInfo,fault_va,PERM_PRESENT | PERM_WRITEABLE | PERM_USER);
 		ptrFrameInfo->va = fault_va;
 		int ret_read  =  pf_read_env_page(curenv ,(void *)fault_va ) ;
 		int ok  = 0 ;
-			ok |=(fault_va>=USTACKBOTTOM && fault_va<USTACKTOP) ;
-			ok |=(fault_va>=USER_HEAP_START && fault_va<USER_HEAP_MAX) ;
-		if (ret_read==E_PAGE_NOT_EXIST_IN_PF && !ok ){
+
+		ok |=( fault_va >= USTACKBOTTOM && fault_va < USTACKTOP) ;
+		ok |=( fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) ;
+        if (ret_read == E_PAGE_NOT_EXIST_IN_PF && !ok ){
 			// ANA LESA M5LST4 ELBA2E bta3t el heap
+			cprintf("magdy 2tlni\n");
 			sched_kill_env(curenv->env_id) ;
 		}
-	   struct   WorkingSetElement* WS1 =  env_page_ws_list_create_element(curenv,fault_va) ;
-	   LIST_INSERT_TAIL(&(curenv->page_WS_list ), WS1) ;
-	   curenv->page_last_WS_element =  WS1 ;
-	   if (LIST_SIZE(&(curenv->page_WS_list))==curenv->page_WS_max_size){
-		   (curenv->page_last_WS_element) = (LIST_FIRST(&(curenv->page_WS_list)));
-	   }else {
+
+	    struct   WorkingSetElement* WS1 =  env_page_ws_list_create_element(curenv,fault_va) ;
+
+	    LIST_INSERT_TAIL(&(curenv->page_WS_list ), WS1) ;
+
+	    curenv->page_last_WS_element =  WS1 ;
+
+	    if (LIST_SIZE(&(curenv->page_WS_list)) == curenv->page_WS_max_size){
+		   (curenv->page_last_WS_element) = LIST_FIRST(&(curenv->page_WS_list));
+	    } else {
 		   (curenv->page_last_WS_element) =  NULL ;
-	   }
+	    }
 	}
 	else
 	{

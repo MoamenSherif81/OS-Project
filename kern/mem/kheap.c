@@ -8,10 +8,10 @@
 // we need to know the acutal limits correctly
 // check if mo2men added the updated test
 // to use those arrays first map the virtual address to page num we start from kheap limit + pagesize as page num 0
-const uint32 HEAP_PAGES = (1<<21);
+#define MAX_N (KERNEL_HEAP_MAX - KERNEL_HEAP_START + PAGE_SIZE - 1) / PAGE_SIZE
 //((KERNEL_HEAP_MAX - (kheap_limit + PAGE_SIZE)) / PAGE_SIZE) + 5;
-uint32 reserved[(1<<21)];
-uint32 last_size[(1<<21)];
+uint32 reserved[MAX_N];
+uint32 last_size[MAX_N];
 
 int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate, uint32 daLimit)
 {
@@ -38,8 +38,7 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 		uint32 currAddress = daStart + PAGE_SIZE * i;
 		struct FrameInfo *newFrameInfoPtr = NULL;
 		int returnValue = allocate_frame(&newFrameInfoPtr);
-		if(returnValue == E_NO_MEM) {
-			free_frame(newFrameInfoPtr);
+		if ( returnValue == E_NO_MEM ) {
 			for(uint32 j = 0; j < i; j++){
 				uint32 address = daStart + PAGE_SIZE * j;
 				uint32 *ptr_page_table;
@@ -50,11 +49,11 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 		}
 		else {
 			newFrameInfoPtr->va = currAddress;
-			map_frame(ptr_page_directory, newFrameInfoPtr, currAddress, PERM_WRITEABLE);
+			map_frame(ptr_page_directory, newFrameInfoPtr, currAddress, PERM_WRITEABLE | PERM_AVAILABLE);
 		}
 	}
 
-	initialize_dynamic_allocator(daStart, initSizeToAllocate);
+	initialize_dynamic_allocator(daStart, ROUNDUP(initSizeToAllocate,PAGE_SIZE));
 
 
 	return 0;
@@ -62,6 +61,7 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 
 void* sbrk(int increment)
 {
+
 	//kiss
 	//TODO: [PROJECT'23.MS2 - #02] [1] KERNEL HEAP - sbrk()
 	/* increment > 0: move the segment break of the kernel to increase the size of its heap,
@@ -84,21 +84,21 @@ void* sbrk(int increment)
 
 	if(increment > 0)
 	{
-		if(ROUNDUP(kheap_break + increment, PAGE_SIZE) > kheap_limit)
+		uint32 new_limit = kheap_break;
+		increment = ROUNDUP(increment , PAGE_SIZE);
+		new_limit += increment;
+		if(new_limit >= kheap_limit)
 			panic("Memory limit exceeded!!!");
 		else
 		{
 			kheap_break = ROUNDUP(kheap_break + increment, PAGE_SIZE);
-
 			for(uint32 i = currentBreak; i < kheap_break; i += PAGE_SIZE)
 			{
-				// Start from current sbrk up until the new break, allocating pages all the way
 				struct FrameInfo* frameInfoPtr = NULL;
 				allocate_frame(&frameInfoPtr);
 				frameInfoPtr->va = i;
-				map_frame(ptr_page_directory, frameInfoPtr, i, PERM_WRITEABLE);
+				map_frame(ptr_page_directory, frameInfoPtr, i, PERM_WRITEABLE | PERM_AVAILABLE);
 			}
-
 			return (void *)currentBreak;
 		}
 
@@ -110,7 +110,7 @@ void* sbrk(int increment)
 		kheap_break = currentBreak + increment; // Subtract increment from current break
 		if(kheap_break < kheap_start)
 			panic("Memory limit exceeded!!!"); // Case: going lower than start of heap
-
+		currentBreak = kheap_break;
 		if(kheap_break <= currentBreak - PAGE_SIZE)
 		{
 			// If previous page boundary is crossed, loop over pages
@@ -120,13 +120,10 @@ void* sbrk(int increment)
 			{
 				unmap_frame(ptr_page_directory, i);
 			}
+			currentBreak = decrementedBreak;
 		}
-		currentBreak = kheap_break;
 		return (void *)currentBreak;
 	}
-	//MS2: COMMENT THIS LINE BEFORE START CODING====
-	return (void*)-1 ;
-	//panic("not implemented yet");
 }
 
 
@@ -137,6 +134,7 @@ void* kmalloc(unsigned int size)
 	// use "isKHeapPlacementStrategyFIRSTFIT() ..." functions to check the current strategy
 	//change this "return" according to your answer
 	//kpanic_into_prompt("kmalloc() is not implemented yet...!!");
+	if(isKHeapPlacementStrategyFIRSTFIT()){
 		if (size <= DYN_ALLOC_MAX_BLOCK_SIZE) {
 			return alloc_block_FF(size);
 		} else {
@@ -144,7 +142,7 @@ void* kmalloc(unsigned int size)
 
 			uint32 count = 0 , which = -1;
 			bool found = 0;
-			for (uint32 page = 0 ; page < (1<<21) ; page++) {
+			for (uint32 page = 0 ; page < MAX_N ; page++) {
 
 				// out of range because HEAP_PAGES isn't so accurate
 				if(page * PAGE_SIZE + kheap_limit + PAGE_SIZE >=  KERNEL_HEAP_MAX)
@@ -174,7 +172,6 @@ void* kmalloc(unsigned int size)
 
 					int returnValue = allocate_frame(&newFrameInfoPtr);
 					if (returnValue == E_NO_MEM){
-						free_frame(newFrameInfoPtr);
 						for(uint32 j = which; j < i; j++){
 							uint32 address = kheap_limit + PAGE_SIZE + PAGE_SIZE * j;
 							uint32 *ptr_page_table;
@@ -187,7 +184,7 @@ void* kmalloc(unsigned int size)
 					}
 					else {
 						newFrameInfoPtr->va = currAddress;
-						map_frame(ptr_page_directory, newFrameInfoPtr, currAddress, PERM_WRITEABLE);
+						map_frame(ptr_page_directory, newFrameInfoPtr, currAddress, PERM_WRITEABLE | PERM_AVAILABLE);
 					}
 				}
 
@@ -198,6 +195,7 @@ void* kmalloc(unsigned int size)
 				return NULL;
 			}
 		}
+	}
 	return NULL;
 }
 
@@ -321,6 +319,65 @@ void *krealloc(void *virtual_address, uint32 new_size)
 
 	//TODO: [PROJECT'23.MS2 - BONUS#1] [1] KERNEL HEAP - krealloc()
 	// Write your code here, remove the panic and write your code
+
+	if (virtual_address == NULL) {
+		return kmalloc(new_size);
+	}
+
+	if (new_size == 0) {
+		kfree(virtual_address);
+		// check
+		// check
+		// check
+		return NULL;
+	}
+
+	if ((uint32)virtual_address >= KERNEL_HEAP_START && (uint32)virtual_address < kheap_limit) {
+		return realloc_block_FF(virtual_address ,new_size);
+	}
+
+	uint32 which_page = ((uint32)virtual_address - (kheap_limit + PAGE_SIZE)) / PAGE_SIZE;
+
+	if (!reserved[which_page])
+		return NULL;
+
+	new_size = ROUNDUP(new_size , PAGE_SIZE);
+	uint32 new_pages = (new_size / PAGE_SIZE);
+	if (new_pages <= last_size[which_page]) {
+		for (int i = which_page + new_pages ; i < which_page + last_size[which_page] ; i++) {
+			unmap_frame(ptr_page_directory, i * PAGE_SIZE + kheap_limit + PAGE_SIZE);
+			reserved[i] = 0;
+		}
+		return virtual_address ;
+	} else {
+		bool ok = 1;
+		for(uint32 i = which_page + last_size[which_page] ; i < which_page + (new_size / PAGE_SIZE) && ((i * PAGE_SIZE + kheap_limit + PAGE_SIZE) < KERNEL_HEAP_MAX); i++) {
+			ok &= !reserved[i];
+		}
+		if(ok && which_page + (new_size / PAGE_SIZE) <= KERNEL_HEAP_MAX){
+			for(uint32 i = which_page + last_size[which_page] ; i < which_page + (new_size / PAGE_SIZE) ; i++) {
+				reserved[i] = 1;
+				struct FrameInfo *newFrameInfoPtr = NULL;
+				uint32 currAddress = kheap_limit + PAGE_SIZE + (PAGE_SIZE * i);
+				int returnValue = allocate_frame(&newFrameInfoPtr);
+				if (returnValue == E_NO_MEM){
+					for(uint32 j = which_page + last_size[which_page]; j < i; j++){
+						uint32 address = kheap_limit + PAGE_SIZE + (PAGE_SIZE * j);
+						unmap_frame(ptr_page_directory, address);
+						reserved[j] = 0;
+					}
+					reserved[i] = 0;
+					return NULL;
+				}
+				else {
+					newFrameInfoPtr->va = currAddress;
+					map_frame(ptr_page_directory, newFrameInfoPtr, currAddress, PERM_WRITEABLE | PERM_AVAILABLE);
+				}
+			}
+		} else {
+			kfree(virtual_address);
+			return kmalloc(new_size);
+		}
+	}
 	return NULL;
-	panic("krealloc() is not implemented yet...!!");
 }

@@ -113,16 +113,21 @@ uint32 calculate_required_frames(uint32* page_directory, uint32 sva, uint32 size
 //======================================================
 
 //=====================================
-// 1) ALLOCATE USER MEMORY:
+// 1) ALLOCATE USER MEMzORY:
 //=====================================
+#define markedBit (1<<7)
 void allocate_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 {
-	for(uint32 i=virtual_address , j=0 ; j<size ; j++, i+= PAGE_SIZE){
-
-		create_page_table(ptr_page_directory,i);
+	for(uint32 i = virtual_address , j = 0 ; j < size ; j++, i += PAGE_SIZE){
+		uint32 *page_table;
+		int ret = get_page_table(e->env_page_directory ,(uint32)i, &page_table);
+		if(ret == TABLE_NOT_EXIST){
+			create_page_table(e->env_page_directory,i);
+			get_page_table(e->env_page_directory ,(uint32)i, &page_table);
+		}
+		page_table[PTX(i)] |= PERM_AVAILABLE;
 	}
 	return;
-
 }
 
 //=====================================
@@ -138,16 +143,18 @@ void free_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 	/*==========================================================================*/
 
 	// Write your code here, remove the panic and write your code
-//	panic("free_user_mem() is not implemented yet...!!");
-
+    //	panic("free_user_mem() is not implemented yet...!!");
 	//TODO: [PROJECT'23.MS2 - BONUS#2] [2] USER HEAP - free_user_mem() IN O(1): removing page from WS List instead of searching the entire list
-	for(int i=virtual_address,j=0;j<size;j++,i+=PAGE_SIZE)
-	{
-		pd_set_table_unused(ptr_page_directory,i);
-		pf_remove_env_page(e , i);
-		env_page_ws_invalidate(e , i);
-	}
+	for (int i = virtual_address, j = 0; j < size; j++, i += PAGE_SIZE) {
 
+		int perms = pt_get_page_permissions(e->env_page_directory,i);
+		if ((perms & PERM_PRESENT) == PERM_PRESENT) {
+			unmap_frame(e->env_page_directory, i);
+			pf_remove_env_page(e, i);
+			env_page_ws_invalidate(e, i);
+		}
+		pt_set_page_permissions(e->env_page_directory, i, 0, PERM_WRITEABLE | PERM_AVAILABLE );
+	}
 
 }
 //=====================================
