@@ -41,8 +41,8 @@ void _main(void)
 
 	int Mega = 1024*1024;
 	int kilo = 1024;
-	char minByte = 1<<7;
-	char maxByte = 0x7F;
+	char  minByte = 1<<7;
+	char  maxByte = 0x7F;
 	short minShort = 1<<15 ;
 	short maxShort = 0x7FFF;
 	int minInt = 1<<31 ;
@@ -72,6 +72,7 @@ void _main(void)
 
 			freeFrames = sys_calculate_free_frames() ;
 			lastIndexOfByte = (2*Mega-kilo)/sizeof(char) - 1;
+
 			byteArr = (char *) ptr_allocations[0];
 			byteArr[0] = minByte ;
 			byteArr[lastIndexOfByte] = maxByte ;
