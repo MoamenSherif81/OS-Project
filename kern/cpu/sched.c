@@ -165,7 +165,32 @@ void sched_init_BSD(uint8 numOfLevels, uint8 quantum)
 	//TODO: [PROJECT'23.MS3 - #4] [2] BSD SCHEDULER - sched_init_BSD
 	//Your code is here
 	//Comment the following line
-	panic("Not implemented yet");
+	//panic("Not implemented yet");
+
+	loadAVG = 0;
+	num_of_ready_queues = numOfLevels;
+
+
+//	*quantums = quantum;
+//
+//	struct Env_Queue newQueue[numOfLevels];
+//
+//	for(int i = 0; i < numOfLevels; i++)
+//		init_queue(&(newQueue[i]));
+//
+//	env_ready_queues = newQueue;
+
+
+	sched_delete_ready_queues();
+	env_ready_queues = kmalloc(sizeof(struct Env_Queue) * numOfLevels);
+	quantums = kmalloc(num_of_ready_queues * sizeof(uint8)) ;
+	kclock_set_quantum(quantum);
+
+	for(int i = 0; i < numOfLevels; i++)
+	{
+		quantums[i] = quantum;
+		init_queue(&(env_ready_queues[i]));
+	}
 
 	//=========================================
 	//DON'T CHANGE THESE LINES=================
@@ -194,7 +219,23 @@ struct Env* fos_scheduler_BSD()
 	//TODO: [PROJECT'23.MS3 - #5] [2] BSD SCHEDULER - fos_scheduler_BSD
 	//Your code is here
 	//Comment the following line
-	panic("Not implemented yet");
+	//panic("Not implemented yet");
+
+	int maxPriroty = -1;
+	struct Env* returnedEnv;
+	struct Env* newEnv;
+
+	for(uint8 i = 0; i < num_of_ready_queues; i++)
+	{
+
+		if(env_ready_queues[i].size != 0)
+		{
+			returnedEnv = LIST_FIRST(&env_ready_queues[i]); // delete process from queue?
+			return returnedEnv;
+		}
+	}
+
+
 	return NULL;
 }
 
@@ -208,7 +249,105 @@ void clock_interrupt_handler()
 	{
 
 
+		if(curenv != NULL)
+			curenv->recentCPU++;
+		// hl value el loadAVG & recentCPU htkoon fixedPoint wla int?
+		int64 currentTicks = timer_ticks(); // in ms
+		// Update Priority
+		if(currentTicks % 4 == 0) // ngeeb el recent abl wla b3d el priority?
+		{
+			struct Env* newEnv;
+			//do at ticks = 0?
+			for(int i = 0; i < num_of_ready_queues; i++)
+			{
+				LIST_FOREACH(newEnv, &(env_ready_queues[i]))
+				{
+					fixed_point_t CPUTime = fix_int(newEnv->recentCPU);
+					fixed_point_t niceVal = fix_int(newEnv->nice);
+					fixed_point_t maxPriority = fix_int(PRI_MAX);
 
+					CPUTime = fix_div(CPUTime, 4); // recent / 4
+					niceVal = fix_mul(niceVal, 2); // nice * 2
+
+					maxPriority = fix_sub(maxPriority, CPUTime); // PRI_MAX - recent/4
+					maxPriority = fix_sub(maxPriority, niceVal); // PRI_MAX - recent/4 - nice*2
+
+
+					newEnv->priority = fix_trunc(maxPriority);
+
+				}
+			}
+
+			// Update Priority for curenv
+			fixed_point_t CPUTime = fix_int(curenv->recentCPU);
+			fixed_point_t niceVal = fix_int(curenv->nice);
+			fixed_point_t maxPriority = fix_int(PRI_MAX);
+
+			CPUTime = fix_div(CPUTime, 4); // recent / 4
+			niceVal = fix_mul(niceVal, 2); // nice * 2
+
+			maxPriority = fix_sub(maxPriority, CPUTime); // PRI_MAX - recent/4
+			maxPriority = fix_sub(maxPriority, niceVal); // PRI_MAX - recent/4 - nice*2
+
+
+			curenv->priority = fix_trunc(maxPriority);
+		}
+
+
+		if(currentTicks % 1000 == 0)
+		{
+			struct Env* newEnv;
+
+			// Update load AVG
+			int numOfReadyProcesses = 0;
+			for(int i = 0; i < num_of_ready_queues; i++)
+			{
+				numOfReadyProcesses += queue_size(num_of_ready_queues[i]);
+			}
+
+			if(curenv != NULL)
+				numOfReadyProcesses++;
+
+			fixed_point_t oldLoadAVG_FP = fix_int(loadAVG);
+			fixed_point_t readyProcesses_FP = fix_int(numOfReadyProcesses);
+
+			fixed_point_t coeff_1 = fix_div(fix_int(59), fix_int(60));
+			fixed_point_t coeff_2 = fix_div(fix_int(1), fix_int(60));
+
+			coeff_1 = fix_mul(coeff_1, oldLoadAVG_FP);
+			coeff_2 = fix_mul(coeff_2, readyProcesses_FP);
+
+			fixed_point_t newLoadAVG_FP = fix_add(coeff_1, coeff_2);
+
+			loadAVG = fix_round(newLoadAVG_FP); // round or trunc?
+
+			// Update recent CPU
+			for(int i = 0; i < num_of_ready_queues; i++)
+			{
+				LIST_FOREACH(newEnv, &(env_ready_queues[i]))
+				{
+					fixed_point_t loadAVG_FP = fix_int(loadAVG);
+					fixed_point_t recentCPU_FP = fix_int(newEnv->recentCPU);
+					fixed_point_t nice_FP = fix_int(newEnv->nice);
+					fixed_point_t loadAVG_FP_double = fix_mul(fix_int(2), loadAVG_FP); // multiply loadAVG by 2
+					fixed_point_t loadConstant = fix_div(loadAVG_FP_double, fix_add(loadAVG_FP_double, fix_int(1)));
+					loadConstant = fix_mul(loadConstant, recentCPU_FP); // multiply loadConst by old recent
+					recentCPU_FP = fix_add(loadConstant, nice_FP); // add loadConst x old recent to nice value
+
+					newEnv->recentCPU = fix_round(recentCPU_FP);
+				}
+			}
+			// Update for curenv
+			fixed_point_t loadAVG_FP = fix_int(loadAVG);
+			fixed_point_t recentCPU_FP = fix_int(curenv->recentCPU);
+			fixed_point_t nice_FP = fix_int(curenv->nice);
+			fixed_point_t loadAVG_FP_double = fix_mul(fix_int(2), loadAVG_FP); // multiply loadAVG by 2
+			fixed_point_t loadConstant = fix_div(loadAVG_FP_double, fix_add(loadAVG_FP_double, fix_int(1)));
+			loadConstant = fix_mul(loadConstant, recentCPU_FP); // multiply loadConst by old recent
+			recentCPU_FP = fix_add(loadConstant, nice_FP); // add loadConst x old recent to nice value
+
+			curenv->recentCPU = fix_round(recentCPU_FP);
+}
 	}
 
 
