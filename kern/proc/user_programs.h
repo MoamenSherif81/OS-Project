@@ -72,6 +72,7 @@ DECLARE_START_OF(tst_syscalls_2_slave2);
 DECLARE_START_OF(tst_syscalls_2_slave3);
 
 //MS3
+
 DECLARE_START_OF(tst_page_replacement_alloc)
 DECLARE_START_OF(tst_page_replacement_stack)
 DECLARE_START_OF(tst_page_replacement_FIFO_1);

@@ -16,7 +16,6 @@ uint32 expectedInitialVAs[11] = {
 void _main(void)
 {
 
-	//	cprintf("envID = %d\n",envID);
 
 	//("STEP 0: checking Initial WS entries ...\n");
 	bool found ;
@@ -32,16 +31,17 @@ void _main(void)
 
 	int freePages = sys_calculate_free_frames();
 	int usedDiskPages = sys_pf_calculate_allocated_pages();
-
+    cprintf("free frames : %d\n",sys_calculate_free_frames());
 	//Reading (Not Modified)
 	char garbage1 = arr[PAGE_SIZE*11-1] ;
 	char garbage2 = arr[PAGE_SIZE*12-1] ;
 	char garbage4,garbage5;
-
+	   cprintf("free frames 3 --> : %d\n",sys_calculate_free_frames());
 	//Writing (Modified)
 	int i ;
 	for (i = 0 ; i < PAGE_SIZE*10 ; i+=PAGE_SIZE/2)
 	{
+	    cprintf("free frames : %d\n",sys_calculate_free_frames());
 		arr[i] = -1 ;
 		/*2016: this BUGGY line is REMOVED el7! it overwrites the KERNEL CODE :( !!!*/
 		//*ptr = *ptr2 ;
@@ -50,18 +50,21 @@ void _main(void)
 		garbage4 = *ptr + garbage5;
 		garbage5 = *ptr2 + garbage4;
 		ptr++ ; ptr2++ ;
+	    cprintf("free frames 2 : %d\n",sys_calculate_free_frames());
+
 	}
 
 	//===================
 
 	//cprintf("Checking Allocation in Mem & Page File... \n");
 	{
+//		cprintf("\n allocated %d , used %d \n",sys_pf_calculate_allocated_pages(),usedDiskPages);
 		if( (sys_pf_calculate_allocated_pages() - usedDiskPages) !=  0) panic("Unexpected extra/less pages have been added to page file.. NOT Expected to add new pages to the page file");
-
 		uint32 freePagesAfter = (sys_calculate_free_frames() + sys_calculate_modified_frames());
+		cprintf("\n before %d , after %d \n",freePages,freePagesAfter);
+
 		if( (freePages - freePagesAfter) != 0 )
 			panic("Extra memory are wrongly allocated... It's REplacement: expected that no extra frames are allocated");
-
 	}
 
 	cprintf("Congratulations!! test PAGE replacement [ALLOCATION] is completed successfully.\n");

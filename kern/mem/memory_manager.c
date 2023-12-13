@@ -541,15 +541,16 @@ struct freeFramesCounters calculate_available_frames()
 	uint32 totalFreeUnBuffered = 0 ;
 	uint32 totalFreeBuffered = 0 ;
 	uint32 totalModified = 0 ;
-
 	LIST_FOREACH(ptr, &free_frame_list)
 	{
+//	    cprintf("shit shit shit %c\n",ptr->isBuffered);
+
 		if (ptr->isBuffered)
 			totalFreeBuffered++ ;
 		else
 			totalFreeUnBuffered++ ;
 	}
-
+      cprintf(" %d %d\n",totalFreeBuffered,totalFreeUnBuffered);
 	LIST_FOREACH(ptr, &modified_frame_list)
 	{
 		totalModified++ ;

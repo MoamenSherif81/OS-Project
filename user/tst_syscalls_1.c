@@ -4,6 +4,7 @@
 void
 _main(void)
 {
+cprintf("here we are %d",2);
 	rsttst();
 	void * ret = sys_sbrk(10);
 	if (ret != (void*)-1)

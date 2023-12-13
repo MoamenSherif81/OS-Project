@@ -134,7 +134,9 @@ int sys_check_WS_list(uint32* WS_list_content, int actual_WS_list_size, uint32 l
 	}
 	//if the order of the content is important to check
 	if (chk_status == 1)
+
 	{
+
 		//		int idx_WS_list = 0;
 		//		LIST_FOREACH(ptr_WS_element, &(env->page_WS_list))
 		//		{
