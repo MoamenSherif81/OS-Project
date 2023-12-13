@@ -101,7 +101,6 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 		ok |=( fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) ;
         if (ret_read == E_PAGE_NOT_EXIST_IN_PF && !ok ){
 			// ANA LESA M5LST4 ELBA2E bta3t el heap
-			cprintf("magdy 2tlni\n");
 			sched_kill_env(curenv->env_id) ;
 		}
 
@@ -124,8 +123,21 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 		if(isPageReplacmentAlgorithmFIFO())
 		{
 			//TODO: [PROJECT'23.MS3 - #1] [1] PAGE FAULT HANDLER - FIFO Replacement
-			// Write your code here, remove the panic and write your code
-			panic("page_fault_handler() FIFO Replacement is not implemented yet...!!");
+			uint32 *ptr_page_table;
+		    struct WorkingSetElement* victim = LIST_FIRST(&(curenv->page_WS_list));
+			struct FrameInfo* ptr_frame_info = get_frame_info(curenv->env_page_directory, victim->virtual_address, &ptr_page_table);
+			uint32  perm =  pt_get_page_permissions(curenv->env_page_directory,victim->virtual_address)&PERM_MODIFIED;
+			cprintf("shit shit %d\n",LIST_SIZE(&free_frame_list));
+			if(perm){
+				pf_update_env_page(curenv,victim->virtual_address,ptr_frame_info);
+			}
+			unmap_frame(curenv->env_page_directory,victim->virtual_address);
+		    env_page_ws_invalidate(curenv,victim->virtual_address);
+		    LIST_REMOVE(&(curenv->page_WS_list),victim);
+//			cprintf("shit shit %d\n",LIST_SIZE(&free_frame_list));
+		    page_fault_handler(curenv , fault_va );
+//			cprintf("shit shit shit %d\n",LIST_SIZE(&free_frame_list));
+
 		}
 		if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
 		{
