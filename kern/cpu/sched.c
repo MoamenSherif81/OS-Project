@@ -223,19 +223,27 @@ struct Env* fos_scheduler_BSD()
 
 	int maxPriroty = -1;
 	struct Env* returnedEnv;
-	struct Env* newEnv;
 
+	if(curenv != NULL)
+	{
+		enqueue(&env_ready_queues[curenv->priority], curenv);
+	}
+
+
+	// Search and get process to be run next
 	for(uint8 i = 0; i < num_of_ready_queues; i++)
 	{
 
 		if(env_ready_queues[i].size != 0)
 		{
 			returnedEnv = LIST_FIRST(&env_ready_queues[i]); // delete process from queue?
+			remove_from_queue(&env_ready_queues[i], returnedEnv);
+			kclock_set_quantum(quantums[0]); // reset quantum
 			return returnedEnv;
 		}
 	}
-
-
+	// if no returnedEnv
+	loadAVG = fix_int(0);
 	return NULL;
 }
 
@@ -250,8 +258,7 @@ void clock_interrupt_handler()
 
 
 		if(curenv != NULL)
-			curenv->recentCPU = fix_add(curenv->recentCPU , fix_int(1));
-		// hl value el loadAVG & recentCPU htkoon fixedPoint wla int?
+			curenv->recentCPU = fix_add(curenv->recentCPU, fix_int(1));
 		int64 currentTicks = timer_ticks(); // in ms
 		// Update Priority
 		if(currentTicks % 4 == 0) // ngeeb el recent abl wla b3d el priority?
@@ -266,15 +273,21 @@ void clock_interrupt_handler()
 					fixed_point_t niceVal = fix_int(newEnv->nice);
 					fixed_point_t maxPriority = fix_int(PRI_MAX);
 
-					CPUTime = fix_div(CPUTime,fix_int(4)); // recent / 4
-					niceVal = fix_mul(niceVal, fix_int(2)); // nice * 2
+					CPUTime = fix_unscale(CPUTime, 4); // recent / 4
+					niceVal = fix_scale(niceVal, 2); // nice * 2
 
 					maxPriority = fix_sub(maxPriority, CPUTime); // PRI_MAX - recent/4
 					maxPriority = fix_sub(maxPriority, niceVal); // PRI_MAX - recent/4 - nice*2
 
+					int finalPriority = fix_trunc(maxPriority);
+					int ourMinimum = PRI_MAX - num_of_ready_queues + 1;
 
-					newEnv->priority = fix_trunc(maxPriority);
+					if(PRI_MAX < finalPriority)
+						finalPriority = PRI_MAX;
+					if(finalPriority < ourMinimum)
+						finalPriority = ourMinimum;
 
+					newEnv->priority = finalPriority;
 				}
 			}
 
@@ -283,14 +296,22 @@ void clock_interrupt_handler()
 			fixed_point_t niceVal = fix_int(curenv->nice);
 			fixed_point_t maxPriority = fix_int(PRI_MAX);
 
-			CPUTime = fix_div(CPUTime, fix_int(4)); // recent / 4
-			niceVal = fix_mul(niceVal, fix_int(2)); // nice * 2
+			CPUTime = fix_unscale(CPUTime, 4); // recent / 4
+			niceVal = fix_scale(niceVal, 2); // nice * 2
 
 			maxPriority = fix_sub(maxPriority, CPUTime); // PRI_MAX - recent/4
 			maxPriority = fix_sub(maxPriority, niceVal); // PRI_MAX - recent/4 - nice*2
 
 
-			curenv->priority = fix_trunc(maxPriority);
+			int finalPriority = fix_trunc(maxPriority);
+			int ourMinimum = PRI_MAX - num_of_ready_queues + 1;
+
+			if(PRI_MAX < finalPriority)
+				finalPriority = PRI_MAX;
+			if(finalPriority < ourMinimum)
+				finalPriority = ourMinimum;
+
+			curenv->priority = finalPriority;
 		}
 
 
@@ -304,7 +325,6 @@ void clock_interrupt_handler()
 			{
 				numOfReadyProcesses += queue_size(&env_ready_queues[i]);
 			}
-
 
 			if(curenv != NULL)
 				numOfReadyProcesses++;
