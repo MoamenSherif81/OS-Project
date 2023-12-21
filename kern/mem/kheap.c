@@ -85,14 +85,14 @@ void* sbrk(int increment)
 	if(increment > 0)
 	{
 		uint32 new_limit = kheap_break;
-		increment = ROUNDUP(increment , PAGE_SIZE);
+		//increment = ROUNDUP(increment , PAGE_SIZE);
 		new_limit += increment;
 		if(new_limit >= kheap_limit)
 			panic("Memory limit exceeded!!!");
 		else
 		{
 			kheap_break = ROUNDUP(kheap_break + increment, PAGE_SIZE);
-			for(uint32 i = currentBreak; i < kheap_break; i += PAGE_SIZE)
+			for(uint32 i = ROUNDUP(currentBreak, PAGE_SIZE); i < kheap_break; i += PAGE_SIZE)
 			{
 				struct FrameInfo* frameInfoPtr = NULL;
 				allocate_frame(&frameInfoPtr);
@@ -110,19 +110,26 @@ void* sbrk(int increment)
 		kheap_break = currentBreak + increment; // Subtract increment from current break
 		if(kheap_break < kheap_start)
 			panic("Memory limit exceeded!!!"); // Case: going lower than start of heap
-		currentBreak = kheap_break;
-		if(kheap_break <= currentBreak - PAGE_SIZE)
+
+//		uint32 decrementedBreak = ROUNDUP(kheap_break, PAGE_SIZE);
+		for(uint32 i = ROUNDUP(currentBreak - PAGE_SIZE, PAGE_SIZE); i >= kheap_break; i -= PAGE_SIZE)
 		{
-			// If previous page boundary is crossed, loop over pages
-			// until the page with current break
-			uint32 decrementedBreak = ROUNDUP(kheap_break, PAGE_SIZE);
-			for(uint32 i = currentBreak - PAGE_SIZE; i >= decrementedBreak; i -= PAGE_SIZE)
-			{
-				unmap_frame(ptr_page_directory, i);
-			}
-			currentBreak = decrementedBreak;
+			unmap_frame(ptr_page_directory, i);
 		}
-		return (void *)currentBreak;
+//		currentBreak = decrementedBreak;
+//		currentBreak = kheap_break;
+//		if(kheap_break <= currentBreak - PAGE_SIZE)
+//		{
+//			// If previous page boundary is crossed, loop over pages
+//			// until the page with current break
+//			uint32 decrementedBreak = ROUNDUP(kheap_break, PAGE_SIZE);
+//			for(uint32 i = currentBreak - PAGE_SIZE; i >= decrementedBreak; i -= PAGE_SIZE)
+//			{
+//				unmap_frame(ptr_page_directory, i);
+//			}
+//			currentBreak = decrementedBreak;
+//		}
+		return (void *)kheap_break;
 	}
 }
 

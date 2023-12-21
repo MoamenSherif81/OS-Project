@@ -226,7 +226,7 @@ struct Env* fos_scheduler_BSD()
 
 	if(curenv != NULL)
 	{
-		enqueue(&env_ready_queues[curenv->priority], curenv);
+		enqueue(&env_ready_queues[PRI_MAX - curenv->priority], curenv);
 	}
 
 
@@ -312,6 +312,20 @@ void clock_interrupt_handler()
 				finalPriority = ourMinimum;
 
 			curenv->priority = finalPriority;
+
+			//
+			for(int i = 0; i < num_of_ready_queues; i++)
+			{
+				LIST_FOREACH(newEnv, &(env_ready_queues[i]))
+				{
+					if(newEnv->priority != PRI_MAX - i) // check if new priority equals that of the queue
+					{
+						remove_from_queue(&env_ready_queues[i], newEnv); // remove from old queue
+						enqueue(&env_ready_queues[PRI_MAX - newEnv->priority], newEnv); // insert in new queue
+					}
+				}
+			}
+
 		}
 
 
