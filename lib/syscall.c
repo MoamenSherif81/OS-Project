@@ -346,6 +346,12 @@ void* sys_sbrk(int increment)
 	return (void *) syscall(SYS_sbrk, (uint32)increment, 0, 0, 0, 0);
 }
 
+void* sys_env_set_nice(int nice_value)
+{
+
+	return (void *) syscall(SYS_env_set_nice , nice_value + 50 ,0,0, 0, 0);
+}
+
 void sys_free_user_mem(uint32 virtual_address, uint32 size)
 {
 	//Comment the following line before start coding...

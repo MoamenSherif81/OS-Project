@@ -794,7 +794,9 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 	case NSYSCALLS:
 		return 	-E_INVAL;
 		break;
-
+	case SYS_env_set_nice:
+		env_set_nice(curenv,a1);
+		return 0;
 	}
 	//panic("syscall not implemented");
 	return -E_INVAL;

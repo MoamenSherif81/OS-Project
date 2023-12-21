@@ -259,7 +259,6 @@ void clock_interrupt_handler()
 
 		if(curenv != NULL)
 			curenv->recentCPU = fix_add(curenv->recentCPU, fix_int(1));
-		// hl value el loadAVG & recentCPU htkoon fixedPoint wla int? <---- fixed point
 		int64 currentTicks = timer_ticks(); // in ms
 		// Update Priority
 		if(currentTicks % 4 == 0) // ngeeb el recent abl wla b3d el priority?
@@ -302,6 +301,7 @@ void clock_interrupt_handler()
 
 			maxPriority = fix_sub(maxPriority, CPUTime); // PRI_MAX - recent/4
 			maxPriority = fix_sub(maxPriority, niceVal); // PRI_MAX - recent/4 - nice*2
+
 
 			int finalPriority = fix_trunc(maxPriority);
 			int ourMinimum = PRI_MAX - num_of_ready_queues + 1;

@@ -72,7 +72,6 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
 }
 
 //Handle the page fault
-
 void page_fault_handler(struct Env * curenv, uint32 fault_va)
 {
 
@@ -83,57 +82,132 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 		int iWS =curenv->page_last_WS_index;
 		uint32 wsSize = env_page_ws_get_size(curenv);
 #endif
-
-	if(wsSize < (curenv->page_WS_max_size))
+	fault_va = ROUNDDOWN(fault_va,PAGE_SIZE);
+	if(isPageReplacmentAlgorithmFIFO())
 	{
-		struct FrameInfo  *ptrFrameInfo ;
-		int perms = pt_get_page_permissions(curenv->env_page_directory, fault_va);
-		int ret = allocate_frame(&ptrFrameInfo);
-		if (ret == E_NO_MEM){
-			panic("ana m4 3arfni");
+		if(wsSize < (curenv->page_WS_max_size))
+		{
+			struct FrameInfo  *ptrFrameInfo ;
+			int perms = pt_get_page_permissions(curenv->env_page_directory, fault_va);
+			int ret = allocate_frame(&ptrFrameInfo);
+			if (ret == E_NO_MEM){
+				panic("ana m4 3arfni");
+			}
+			map_frame(curenv->env_page_directory,ptrFrameInfo,fault_va,PERM_PRESENT | PERM_WRITEABLE | PERM_USER);
+			ptrFrameInfo->va = fault_va;
+			int ret_read  =  pf_read_env_page(curenv ,(void *)fault_va ) ;
+			int ok  = 0 ;
+			ok |=( fault_va >= USTACKBOTTOM && fault_va < USTACKTOP) ;
+			ok |=( fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) ;
+			if (ret_read == E_PAGE_NOT_EXIST_IN_PF && !ok ){
+				// ANA LESA M5LST4 ELBA2E bta3t el heap
+				sched_kill_env(curenv->env_id) ;
+			}
+
+			struct   WorkingSetElement* WS1 =  env_page_ws_list_create_element(curenv,fault_va) ;
+
+			LIST_INSERT_TAIL(&(curenv->page_WS_list ), WS1) ;
+
+			curenv->page_last_WS_element =  WS1 ;
+
+			if (LIST_SIZE(&(curenv->page_WS_list)) == curenv->page_WS_max_size){
+			   (curenv->page_last_WS_element) = LIST_FIRST(&(curenv->page_WS_list));
+			} else {
+			   (curenv->page_last_WS_element) =  NULL ;
+			}
 		}
-		map_frame(curenv->env_page_directory,ptrFrameInfo,fault_va,PERM_PRESENT | PERM_WRITEABLE | PERM_USER);
-		ptrFrameInfo->va = fault_va;
-		int ret_read  =  pf_read_env_page(curenv ,(void *)fault_va ) ;
-		int ok  = 0 ;
+		else
+		{
+			//cprintf("REPLACEMENT=========================WS Size = %d\n", wsSize );
+			//refer to the project presentation and documentation for details
 
-		ok |=( fault_va >= USTACKBOTTOM && fault_va < USTACKTOP) ;
-		ok |=( fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) ;
-        if (ret_read == E_PAGE_NOT_EXIST_IN_PF && !ok ){
-			// ANA LESA M5LST4 ELBA2E bta3t el heap
-			cprintf("magdy 2tlni\n");
-			sched_kill_env(curenv->env_id) ;
+				//TODO: [PROJECT'23.MS3 - #1] [1] PAGE FAULT HANDLER - FIFO Replacement
+				uint32 *ptr_page_table;
+				struct WorkingSetElement* victim = LIST_FIRST(&(curenv->page_WS_list));
+				struct FrameInfo* ptr_frame_info = get_frame_info(curenv->env_page_directory, victim->virtual_address, &ptr_page_table);
+				uint32  perm =  pt_get_page_permissions(curenv->env_page_directory,victim->virtual_address)&PERM_MODIFIED;
+				if(perm){
+					pf_update_env_page(curenv,victim->virtual_address,ptr_frame_info);
+				}
+				unmap_frame(curenv->env_page_directory,victim->virtual_address);
+				env_page_ws_invalidate(curenv,victim->virtual_address);
+	//		    LIST_REMOVE(&(curenv->page_WS_list),victim);
+	//			cprintf("shit shit %d\n",LIST_SIZE(&free_frame_list));
+				page_fault_handler(curenv , fault_va );
+	//			cprintf("shit shit shit %d\n",LIST_SIZE(&free_frame_list));
+
 		}
-
-	    struct   WorkingSetElement* WS1 =  env_page_ws_list_create_element(curenv,fault_va) ;
-
-	    LIST_INSERT_TAIL(&(curenv->page_WS_list ), WS1) ;
-
-	    curenv->page_last_WS_element =  WS1 ;
-
-	    if (LIST_SIZE(&(curenv->page_WS_list)) == curenv->page_WS_max_size){
-		   (curenv->page_last_WS_element) = LIST_FIRST(&(curenv->page_WS_list));
-	    } else {
-		   (curenv->page_last_WS_element) =  NULL ;
-	    }
 	}
 	else
 	{
-		//cprintf("REPLACEMENT=========================WS Size = %d\n", wsSize );
-		//refer to the project presentation and documentation for details
-		if(isPageReplacmentAlgorithmFIFO())
+		//TODO: [PROJECT'23.MS3 - #2] [1] PAGE FAULT HANDLER - LRU Replacement
+		bool found = 0;
+		struct WorkingSetElement* ws;
+		LIST_FOREACH(ws,&(curenv->SecondList))
 		{
-			//TODO: [PROJECT'23.MS3 - #1] [1] PAGE FAULT HANDLER - FIFO Replacement
-			// Write your code here, remove the panic and write your code
-			panic("page_fault_handler() FIFO Replacement is not implemented yet...!!");
+			if(ws->virtual_address == fault_va)
+			{
+				found = 1;
+				break;
+			}
 		}
-		if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+		if(found)
 		{
-			//TODO: [PROJECT'23.MS3 - #2] [1] PAGE FAULT HANDLER - LRU Replacement
+			LIST_REMOVE(&(curenv->SecondList),ws);
+			if(LIST_SIZE(&(curenv->ActiveList)) == (curenv->ActiveListSize))
+			{
+				struct WorkingSetElement* overflow_victim = LIST_LAST(&(curenv->ActiveList));
+				pt_set_page_permissions(curenv->env_page_directory,overflow_victim->virtual_address,0,PERM_PRESENT);
+				LIST_REMOVE(&(curenv->ActiveList),overflow_victim);
+				LIST_INSERT_HEAD(&(curenv->SecondList),overflow_victim);
+			}
+			pt_set_page_permissions(curenv->env_page_directory,fault_va,PERM_PRESENT,0);
+			LIST_INSERT_HEAD(&(curenv->ActiveList),ws);
+			return;
+		}
+		if(LIST_SIZE(&(curenv->ActiveList)) + LIST_SIZE(&(curenv->SecondList)) < (curenv->ActiveListSize)+(curenv->SecondListSize))
+		{
+			if(LIST_SIZE(&(curenv->ActiveList)) == (curenv->ActiveListSize))
+			{
+				struct WorkingSetElement* overflow_victim = LIST_LAST(&(curenv->ActiveList));
+				pt_set_page_permissions(curenv->env_page_directory,overflow_victim->virtual_address,0,PERM_PRESENT);
+				LIST_REMOVE(&(curenv->ActiveList),overflow_victim);
+				LIST_INSERT_HEAD(&(curenv->SecondList),overflow_victim);
+			}
+			struct FrameInfo  *ptrFrameInfo;
+			int ret = allocate_frame(&ptrFrameInfo);
+			if (ret == E_NO_MEM){
+				panic("ana m4 3arfni 2.0");
+			}
+			map_frame(curenv->env_page_directory,ptrFrameInfo,fault_va,PERM_PRESENT | PERM_WRITEABLE | PERM_USER);
+			ptrFrameInfo->va = fault_va;
+			int ret_read  =  pf_read_env_page(curenv ,(void *)fault_va ) ;
+			int ok  = 0 ;
+			ok |=( fault_va >= USTACKBOTTOM && fault_va < USTACKTOP) ;
+			ok |=( fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) ;
+			if (ret_read == E_PAGE_NOT_EXIST_IN_PF && !ok ){
+				// ANA LESA M5LST4 ELBA2E bta3t el heap
+				sched_kill_env(curenv->env_id) ;
+			}
+			struct   WorkingSetElement* WS1 =  env_page_ws_list_create_element(curenv,fault_va) ;
+			LIST_INSERT_HEAD(&(curenv->ActiveList ), WS1);
+		}
+		else
+		{
 			// Write your code here, remove the panic and write your code
-			panic("page_fault_handler() LRU Replacement is not implemented yet...!!");
+//			panic("page_fault_handler() LRU Replacement is not implemented yet...!!");
 
 			//TODO: [PROJECT'23.MS3 - BONUS] [1] PAGE FAULT HANDLER - O(1) implementation of LRU replacement
+			uint32 *ptr_page_table;
+			struct WorkingSetElement* victim = LIST_LAST(&(curenv->SecondList));
+			struct FrameInfo* ptr_frame_info = get_frame_info(curenv->env_page_directory, victim->virtual_address, &ptr_page_table);
+			uint32  perm =  pt_get_page_permissions(curenv->env_page_directory,victim->virtual_address)&PERM_MODIFIED;
+			if(perm){
+				pf_update_env_page(curenv,victim->virtual_address,ptr_frame_info);
+			}
+			unmap_frame(curenv->env_page_directory,victim->virtual_address);
+			env_page_ws_invalidate(curenv,victim->virtual_address);
+			page_fault_handler(curenv , fault_va );
 		}
 	}
 }
