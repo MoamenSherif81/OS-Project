@@ -205,6 +205,9 @@ void Merge(int* A, int p, int q, int r)
 	//cprintf("allocate RIGHT\n");
 	int* Right = malloc(sizeof(int) * rightCapacity);
 
+	cprintf("IN \n");
+
+
 	int i, j, k;
 	for (i = 0; i < leftCapacity; i++)
 	{
@@ -237,6 +240,8 @@ void Merge(int* A, int p, int q, int r)
 			A[k - 1] = Right[rightIndex++];
 		}
 	}
+
+	cprintf("OUT \n");
 
 	//cprintf("free LEFT\n");
 	free(Left);

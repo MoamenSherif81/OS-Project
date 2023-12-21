@@ -513,8 +513,8 @@ void* sys_sbrk(int increment)
 	uint32 envBreak = env->segment_break;
 	if(increment > 0) // Case: positive increment
 	{
-		long long new_limit = envBreak;
-		increment = ROUNDUP(increment , PAGE_SIZE);
+		uint32 new_limit = envBreak;
+		//increment = ROUNDUP(increment , PAGE_SIZE);
 		new_limit += increment;
 		if(new_limit > env->hard_limit){
 			return (void *)-1; // Case: Segment break passes limit of env
@@ -522,14 +522,15 @@ void* sys_sbrk(int increment)
 		else
 		{
 			envBreak = ROUNDUP(envBreak + increment, PAGE_SIZE); // Incrment break WITHOUT allocating frames
-			for(uint32 i = currentBreak ;i < envBreak; i += PAGE_SIZE){
+			for(uint32 i = ROUNDUP(currentBreak, PAGE_SIZE); i < envBreak; i += PAGE_SIZE){
 				uint32 *page_table;
 				int ret = get_page_table(env->env_page_directory ,(uint32)i, &page_table);
 				if(ret == TABLE_NOT_EXIST){
 					create_page_table(env->env_page_directory,i);
 					get_page_table(env->env_page_directory ,(uint32)i, &page_table);
 				}
-				page_table[PTX(i)] |= PERM_AVAILABLE;
+				//page_table[PTX(i)] |= PERM_AVAILABLE;
+				pt_set_page_permissions(env->env_page_directory, i, PERM_AVAILABLE | PERM_WRITEABLE | PERM_USER, 0);
 			}
 			env->segment_break = envBreak;
 			return (void *)currentBreak;
@@ -542,12 +543,20 @@ void* sys_sbrk(int increment)
 		uint32 decrementedBreak = currentBreak + increment;
 		if(decrementedBreak < env->start) // Case: Segment break goes below Start of env, return -1
 			return (void *)-1;
-		if(decrementedBreak <= currentBreak - PAGE_SIZE) // Case: Segment break passes page boundary, deallocate previous pages
-			{
-			uint32 decrementPageBound = ROUNDUP(decrementedBreak, PAGE_SIZE);
-			for(uint32 i = currentBreak - PAGE_SIZE; i >= decrementPageBound; i -= PAGE_SIZE)
-				unmap_frame(ptr_page_directory, i);
+
+		for(uint32 i = ROUNDUP(currentBreak - PAGE_SIZE, PAGE_SIZE); i >= decrementedBreak; i -= PAGE_SIZE)
+		{
+			unmap_frame(env->env_page_directory, i);
+			pf_remove_env_page(env, i);
+			env_page_ws_invalidate(env, i);
+			pt_set_page_permissions(env->env_page_directory, i, 0, PERM_WRITEABLE | PERM_AVAILABLE | PERM_USER);
 		}
+//		if(decrementedBreak <= currentBreak - PAGE_SIZE) // Case: Segment break passes page boundary, deallocate previous pages
+//			{
+//			uint32 decrementPageBound = ROUNDUP(decrementedBreak, PAGE_SIZE);
+//			for(uint32 i = currentBreak - PAGE_SIZE; i >= decrementPageBound; i -= PAGE_SIZE)
+//				unmap_frame(ptr_page_directory, i);
+//		}
 		env->segment_break = decrementedBreak;
 		return (void *) env->segment_break;
 	}
@@ -790,11 +799,12 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 	  sys_get_uheap_limit();
 	  return curenv->hard_limit;
 	  break;
-
+	case SYS_env_set_nice:
+		env_set_nice(curenv,a1);
+		return 0;
 	case NSYSCALLS:
 		return 	-E_INVAL;
 		break;
-
 	}
 	//panic("syscall not implemented");
 	return -E_INVAL;
