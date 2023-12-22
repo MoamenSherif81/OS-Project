@@ -225,7 +225,7 @@ struct Env* fos_scheduler_BSD()
 
 	if(curenv != NULL)
 	{
-		enqueue(&env_ready_queues[PRI_MAX - curenv->priority], curenv);
+		LIST_INSERT_TAIL(&env_ready_queues[PRI_MAX - curenv->priority], curenv);
 	}
 
 
@@ -235,7 +235,8 @@ struct Env* fos_scheduler_BSD()
 
 		if(env_ready_queues[i].size != 0)
 		{
-			returnedEnv = dequeue(&env_ready_queues[i]); // delete process from queue?
+			returnedEnv = LIST_FIRST(&env_ready_queues[i]); // delete process from queue?
+			remove_from_queue(&env_ready_queues[i], returnedEnv); // remove from old queue
 			kclock_set_quantum(quantums[0]); // reset quantum
 			return returnedEnv;
 		}
@@ -319,11 +320,10 @@ void clock_interrupt_handler()
 					if(newEnv->priority != PRI_MAX - i) // check if new priority equals that of the queue
 					{
 						remove_from_queue(&env_ready_queues[i], newEnv); // remove from old queue
-						enqueue(&env_ready_queues[PRI_MAX - newEnv->priority], newEnv); // insert in new queue
+						LIST_INSERT_TAIL(&env_ready_queues[PRI_MAX - newEnv->priority], newEnv); // insert in new queue
 					}
 				}
 			}
-
 		}
 
 
@@ -370,7 +370,8 @@ void clock_interrupt_handler()
 					newEnv->recentCPU = recentCPU_FP;
 				}
 			}
-			// Update for curenv
+
+			// Update for curenv EACH TICK
 			fixed_point_t loadAVG_FP = loadAVG;
 			fixed_point_t recentCPU_FP = curenv->recentCPU;
 			fixed_point_t nice_FP = fix_int(curenv->nice);
@@ -380,8 +381,9 @@ void clock_interrupt_handler()
 			recentCPU_FP = fix_add(loadConstant, nice_FP); // add loadConst x old recent to nice value
 
 			curenv->recentCPU = recentCPU_FP;
-}
+		}
 	}
+
 
 
 	/********DON'T CHANGE THIS LINE***********/

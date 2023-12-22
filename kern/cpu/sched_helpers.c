@@ -558,14 +558,14 @@ void env_set_nice (struct Env* e, int nice_value) {
     //Comment the following line
 	//    panic("Not implemented yet");
 
-    e->nice = nice_value - 50;
+    e->nice = nice_value;
     fixed_point_t temp = e->recentCPU;
     temp = fix_unscale(temp, 4);
     temp = fix_sub(temp , fix_int(e->nice * 2));
     temp = fix_sub(fix_int(PRI_MAX),temp);
-    int ret = fix_round(temp);
+    int ret = fix_trunc(temp);
 
-    if (ret < PRI_MAX - num_of_ready_queues)ret = PRI_MAX - num_of_ready_queues;
+    if (ret < PRI_MAX - num_of_ready_queues + 1)ret = PRI_MAX - num_of_ready_queues + 1; // 63 62 61 60 59 58 57 56 55 54
     if (ret > PRI_MAX) ret = PRI_MAX;
 
     e->priority = ret;

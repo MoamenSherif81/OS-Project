@@ -800,7 +800,7 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 	  return curenv->hard_limit;
 	  break;
 	case SYS_env_set_nice:
-		env_set_nice(curenv,a1);
+		env_set_nice(curenv,(int)a1 - 50);
 		return 0;
 	case NSYSCALLS:
 		return 	-E_INVAL;
