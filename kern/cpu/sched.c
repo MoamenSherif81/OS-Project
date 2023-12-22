@@ -183,7 +183,7 @@ void sched_init_BSD(uint8 numOfLevels, uint8 quantum)
 
 	sched_delete_ready_queues();
 	env_ready_queues = kmalloc(sizeof(struct Env_Queue) * numOfLevels);
-	quantums = kmalloc(num_of_ready_queues * sizeof(uint8)) ;
+	quantums = kmalloc(numOfLevels * sizeof(uint8)) ;
 	kclock_set_quantum(quantum);
 
 	for(int i = 0; i < numOfLevels; i++)
@@ -221,12 +221,11 @@ struct Env* fos_scheduler_BSD()
 	//Comment the following line
 	//panic("Not implemented yet");
 
-	int maxPriroty = -1;
 	struct Env* returnedEnv;
 
 	if(curenv != NULL)
 	{
-		enqueue(&env_ready_queues[PRI_MAX - curenv->priority], curenv);
+		LIST_INSERT_TAIL(&env_ready_queues[PRI_MAX - curenv->priority], curenv);
 	}
 
 
@@ -237,7 +236,7 @@ struct Env* fos_scheduler_BSD()
 		if(env_ready_queues[i].size != 0)
 		{
 			returnedEnv = LIST_FIRST(&env_ready_queues[i]); // delete process from queue?
-			remove_from_queue(&env_ready_queues[i], returnedEnv);
+			remove_from_queue(&env_ready_queues[i], returnedEnv); // remove from old queue
 			kclock_set_quantum(quantums[0]); // reset quantum
 			return returnedEnv;
 		}
@@ -299,8 +298,8 @@ void clock_interrupt_handler()
 			CPUTime = fix_unscale(CPUTime, 4); // recent / 4
 			niceVal = fix_scale(niceVal, 2); // nice * 2
 
-			maxPriority = fix_sub(maxPriority, CPUTime); // PRI_MAX - recent/4
-			maxPriority = fix_sub(maxPriority, niceVal); // PRI_MAX - recent/4 - nice*2
+			maxPriority = fix_sub(maxPriority, CPUTime); // PRI_MAX - recent / 4
+			maxPriority = fix_sub(maxPriority, niceVal); // PRI_MAX - recent / 4 - nice*2
 
 
 			int finalPriority = fix_trunc(maxPriority);
@@ -321,15 +320,14 @@ void clock_interrupt_handler()
 					if(newEnv->priority != PRI_MAX - i) // check if new priority equals that of the queue
 					{
 						remove_from_queue(&env_ready_queues[i], newEnv); // remove from old queue
-						enqueue(&env_ready_queues[PRI_MAX - newEnv->priority], newEnv); // insert in new queue
+						LIST_INSERT_TAIL(&env_ready_queues[PRI_MAX - newEnv->priority], newEnv); // insert in new queue
 					}
 				}
 			}
-
 		}
 
 
-		if(currentTicks % 1000 == 0)
+		if((currentTicks * (int64)quantums[0]) % 1000 == 0)
 		{
 			struct Env* newEnv;
 
@@ -372,7 +370,8 @@ void clock_interrupt_handler()
 					newEnv->recentCPU = recentCPU_FP;
 				}
 			}
-			// Update for curenv
+
+			// Update for curenv EACH TICK
 			fixed_point_t loadAVG_FP = loadAVG;
 			fixed_point_t recentCPU_FP = curenv->recentCPU;
 			fixed_point_t nice_FP = fix_int(curenv->nice);
@@ -382,8 +381,9 @@ void clock_interrupt_handler()
 			recentCPU_FP = fix_add(loadConstant, nice_FP); // add loadConst x old recent to nice value
 
 			curenv->recentCPU = recentCPU_FP;
-}
+		}
 	}
+
 
 
 	/********DON'T CHANGE THIS LINE***********/
