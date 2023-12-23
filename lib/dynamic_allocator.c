@@ -352,70 +352,83 @@ void free_block(void *va)
 //=========================================
 //TODO: [PROJECT'23.MS1 - #8] [3] DYNAMIC ALLOCATOR - realloc_block_FF()
 void *realloc_block_FF(void *va, uint32 new_size) {
-if (va == NULL && new_size == 0)
-	return NULL;
+	if (va == NULL && new_size == 0)
+		return NULL;
 
-if (va == NULL)
-	return alloc_block_FF(new_size);
+	consist = 0;
+	if (va == NULL)
+		return alloc_block_FF(new_size);
 
-if (new_size == 0) {
-	free_block(va);
-	return NULL;
-}
+	if (new_size == 0) {
+		free_block(va);
+		return NULL;
+	}
 
-struct BlockMetaData *currMeta = (struct BlockMetaData *)va - 1;
-struct BlockMetaData *nxtMeta = LIST_NEXT(currMeta);
+	struct BlockMetaData *currMeta = (struct BlockMetaData *)va - 1;
+	struct BlockMetaData *nxtMeta = LIST_NEXT(currMeta);
 
-// If the new size matches the current size, return the original pointer
-if (new_size + sizeOfMetaData() == currMeta->size) {
-	return va;
-}
-
-// CASE OF MEMORY SHRINKING
-if (new_size < currMeta->size - sizeOfMetaData()) {
-	uint32 diff = currMeta->size - new_size - sizeOfMetaData();
-	currMeta->size -= diff;
-	if (nxtMeta != NULL && nxtMeta->is_free) {
-		struct BlockMetaData *new =(struct BlockMetaData *) va+new_size;
-		new->size= diff + nxtMeta->size ;
-		new->is_free=1;
-		LIST_REMOVE(&mem_blocks,nxtMeta);
-		LIST_INSERT_AFTER(&mem_blocks,currMeta,new);
+	// If the new size matches the current size, return the original pointer
+	if (new_size + sizeOfMetaData() == currMeta->size) {
 		return va;
 	}
-	if (diff >= sizeOfMetaData()) {
-		struct BlockMetaData *new_block = (struct BlockMetaData *)((uint32)va + new_size);
-		new_block->size = diff;
-		new_block->is_free = 1;
-		LIST_INSERT_AFTER(&mem_blocks, currMeta, new_block);
+
+	// CASE OF MEMORY SHRINKING
+	if (new_size < currMeta->size - sizeOfMetaData()) {
+		uint32 diff = currMeta->size - new_size - sizeOfMetaData();
+		currMeta->size -= diff;
+		if (nxtMeta != NULL && nxtMeta->is_free) {
+			struct BlockMetaData *new =(struct BlockMetaData *)((uint32)va + new_size);
+			new->size= diff + nxtMeta->size ;
+			new->is_free = 1;
+			LIST_REMOVE(&mem_blocks,nxtMeta);
+			LIST_INSERT_AFTER(&mem_blocks,currMeta,new);
+			return va;
+		}
+
+		if (diff >= sizeOfMetaData()) {
+			struct BlockMetaData *new_block = (struct BlockMetaData *)((uint32)va + new_size);
+			new_block->size = diff;
+			new_block->is_free = 1;
+			LIST_INSERT_AFTER(&mem_blocks, currMeta, new_block);
+		}
+		else currMeta->size += diff;
+		return va;
 	}
-	else currMeta->size += diff;
-	return va;
-}
 
-// CASE OF MEMORY INCREASING
-if (nxtMeta != NULL && nxtMeta->is_free) {
-	currMeta->size += nxtMeta->size;
-	nxtMeta->size = 0;
-	nxtMeta->is_free = 0;
-}
+	// CASE OF MEMORY INCREASING
+	uint32 nxtsize = 0;
+	if(nxtMeta != NULL && nxtMeta->is_free){
+		nxtsize = nxtMeta->size;
+	}
 
-// Expand in the same place
-if (currMeta->size >= new_size + sizeOfMetaData()) {
-	uint32 diff = currMeta->size - new_size - sizeOfMetaData();
-	currMeta->size = new_size + sizeOfMetaData();
-	if (diff >= sizeOfMetaData()) {
-		struct BlockMetaData *new =(struct BlockMetaData *) va+new_size;
-		new->size = diff;
-		new->is_free = 1;
+
+	// Expand in the same place
+	if (currMeta->size + nxtsize >= new_size + sizeOfMetaData()) {
+		currMeta->size += nxtsize;
+		nxtMeta->size = 0;
+		nxtMeta->is_free = 0;
 		LIST_REMOVE(&mem_blocks,nxtMeta);
-		LIST_INSERT_AFTER(&mem_blocks,currMeta,new);
+		uint32 diff = currMeta->size - new_size - sizeOfMetaData();
+		currMeta->size = new_size + sizeOfMetaData();
+		if (diff >= sizeOfMetaData()) {
+			struct BlockMetaData *new =(struct BlockMetaData *) (va + new_size);
+			new->size = diff;
+			new->is_free = 1;
+			LIST_INSERT_AFTER(&mem_blocks,currMeta,new);
+		}
+		else currMeta->size += diff;
+		return va;
+	} else {
+		void* new_va =  alloc_block_FF(new_size);
+
+		if(new_va == NULL)
+			return va;
+
+		memcpy(new_va , va , currMeta->size - sizeOfMetaData());
+		free_block(va);
+
+		return new_va;
 	}
-	else currMeta->size +=diff;
-	return va;
-} else {
-	free_block(va);
-	return alloc_block_FF(new_size);
+	return NULL;
 }
-return NULL;
-}
+

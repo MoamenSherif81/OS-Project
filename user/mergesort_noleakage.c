@@ -205,7 +205,7 @@ void Merge(int* A, int p, int q, int r)
 	//cprintf("allocate RIGHT\n");
 	int* Right = malloc(sizeof(int) * rightCapacity);
 
-	cprintf("IN \n");
+
 
 
 	int i, j, k;
@@ -241,7 +241,7 @@ void Merge(int* A, int p, int q, int r)
 		}
 	}
 
-	cprintf("OUT \n");
+
 
 	//cprintf("free LEFT\n");
 	free(Left);
