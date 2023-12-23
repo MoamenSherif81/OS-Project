@@ -443,19 +443,33 @@ void env_run(struct Env *e)
 void env_free(struct Env *e)
 {
 	/*REMOVE THIS LINE BEFORE START CODING*/
-	return;
 	/**************************************/
 
 	//TODO: [PROJECT'23.MS3 - BONUS] EXIT ENV: env_free
 	// your code is here, remove the panic and write your code
 	{
-		panic("env_free() is not implemented yet...!!");
-
-
-
-
-
-
+//		panic("env_free() is not implemented yet...!!");
+		if(isPageReplacmentAlgorithmFIFO()){
+			while(LIST_SIZE(&e->page_WS_list)){
+				struct WorkingSetElement* victim = LIST_FIRST(&e->page_WS_list);
+				kfree((void*)victim->virtual_address);
+				pd_clear_page_dir_entry(e->env_page_directory ,victim->virtual_address);
+				env_page_ws_invalidate(e , victim->virtual_address);
+			}
+		}else{
+			while(LIST_SIZE(&e->ActiveList)){
+				struct WorkingSetElement* victim = LIST_FIRST(&e->ActiveList);
+				kfree((void*)victim->virtual_address);
+				pd_clear_page_dir_entry(e->env_page_directory ,victim->virtual_address);
+				env_page_ws_invalidate(e , victim->virtual_address);
+			}
+			while(LIST_SIZE(&e->SecondList)){
+				struct WorkingSetElement* victim = LIST_FIRST(&e->SecondList);
+				kfree((void*)victim->virtual_address);
+				pd_clear_page_dir_entry(e->env_page_directory ,victim->virtual_address);
+				env_page_ws_invalidate(e , victim->virtual_address);
+			}
+		}
 	}
 
 	// [9] remove this program from the page file

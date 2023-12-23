@@ -85,7 +85,6 @@ void* sbrk(int increment)
 	if(increment > 0)
 	{
 		uint32 new_limit = kheap_break;
-		//increment = ROUNDUP(increment , PAGE_SIZE);
 		new_limit += increment;
 		if(new_limit >= kheap_limit)
 			panic("Memory limit exceeded!!!");
@@ -110,25 +109,10 @@ void* sbrk(int increment)
 		kheap_break = currentBreak + increment; // Subtract increment from current break
 		if(kheap_break < kheap_start)
 			panic("Memory limit exceeded!!!"); // Case: going lower than start of heap
-
-//		uint32 decrementedBreak = ROUNDUP(kheap_break, PAGE_SIZE);
 		for(uint32 i = ROUNDUP(currentBreak - PAGE_SIZE, PAGE_SIZE); i >= kheap_break; i -= PAGE_SIZE)
 		{
 			unmap_frame(ptr_page_directory, i);
 		}
-//		currentBreak = decrementedBreak;
-//		currentBreak = kheap_break;
-//		if(kheap_break <= currentBreak - PAGE_SIZE)
-//		{
-//			// If previous page boundary is crossed, loop over pages
-//			// until the page with current break
-//			uint32 decrementedBreak = ROUNDUP(kheap_break, PAGE_SIZE);
-//			for(uint32 i = currentBreak - PAGE_SIZE; i >= decrementedBreak; i -= PAGE_SIZE)
-//			{
-//				unmap_frame(ptr_page_directory, i);
-//			}
-//			currentBreak = decrementedBreak;
-//		}
 		return (void *)kheap_break;
 	}
 }
@@ -151,7 +135,6 @@ void* kmalloc(unsigned int size)
 			bool found = 0;
 			for (uint32 page = 0 ; page < MAX_N ; page++) {
 
-				// out of range because HEAP_PAGES isn't so accurate
 				if(page * PAGE_SIZE + kheap_limit + PAGE_SIZE >=  KERNEL_HEAP_MAX)
 					break;
 
@@ -181,8 +164,6 @@ void* kmalloc(unsigned int size)
 					if (returnValue == E_NO_MEM){
 						for(uint32 j = which; j < i; j++){
 							uint32 address = kheap_limit + PAGE_SIZE + PAGE_SIZE * j;
-							uint32 *ptr_page_table;
-							struct FrameInfo* frameData = get_frame_info(ptr_page_directory, address, &ptr_page_table);
 							unmap_frame(ptr_page_directory, address);
 							reserved[j] = 0;
 						}
@@ -239,9 +220,6 @@ void kfree(void* va)
 		unmap_frame(ptr_page_directory, i * PAGE_SIZE + kheap_limit + PAGE_SIZE);
 		reserved[i] = 0;
 	}
-	// no idea what happens if he wants to free before kheap limit
-	// no idea what happens if he wants to free before kheap limit
-	// no idea what happens if he wants to free before kheap limit
 }
 
 
@@ -261,15 +239,6 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 	}
 
 	return ((frameData->va >> 12) << 12) + offset;
-
-//	cprintf("%u \n", ((frameData->va >> 12) << 12) + offset);
-	//	uint32 frame_num = physical_address >> 12;
-//	frame_num <<= 12;
-//	uint32 virtual_address = frameData->va;
-
-//	virtual_address >>= 12;
-//	virtual_address <<= 12;
-//	return virtual_address + physical_address % PAGE_SIZE;
 }
 
 unsigned int kheap_physical_address(unsigned int virtual_address)
@@ -317,7 +286,6 @@ void kexpand(uint32 newSize)
 //	possibly moving it in the heap.
 //	If successful, returns the new virtual_address, in which case the old virtual_address must no longer be accessed.
 //	On failure, returns a null pointer, and the old virtual_address remains valid.
-
 //	A call with virtual_address = null is equivalent to kmalloc().
 //	A call with new_size = zero is equivalent to kfree().
 
@@ -333,9 +301,6 @@ void *krealloc(void *virtual_address, uint32 new_size)
 
 	if (new_size == 0) {
 		kfree(virtual_address);
-		// check
-		// check
-		// check
 		return NULL;
 	}
 
@@ -351,18 +316,25 @@ void *krealloc(void *virtual_address, uint32 new_size)
 	new_size = ROUNDUP(new_size , PAGE_SIZE);
 	uint32 new_pages = (new_size / PAGE_SIZE);
 	if (new_pages <= last_size[which_page]) {
+		// [which_page , which_page + new_pages - 1] -> [which_page + new_pages , which_page + last_size[which_page] - 1]
 		for (int i = which_page + new_pages ; i < which_page + last_size[which_page] ; i++) {
 			unmap_frame(ptr_page_directory, i * PAGE_SIZE + kheap_limit + PAGE_SIZE);
 			reserved[i] = 0;
 		}
+		last_size[which_page] = new_pages;
 		return virtual_address ;
 	} else {
 		bool ok = 1;
-		for(uint32 i = which_page + last_size[which_page] ; i < which_page + (new_size / PAGE_SIZE) && ((i * PAGE_SIZE + kheap_limit + PAGE_SIZE) < KERNEL_HEAP_MAX); i++) {
+		for (uint32 i = which_page + last_size[which_page] ; i < which_page + new_pages; i++) {
+			if (i * PAGE_SIZE + KERNEL_HEAP_MAX + kheap_limit + PAGE_SIZE >= KERNEL_HEAP_MAX){
+				ok = 0;
+				break;
+			}
 			ok &= !reserved[i];
 		}
-		if(ok && which_page + (new_size / PAGE_SIZE) <= KERNEL_HEAP_MAX){
-			for(uint32 i = which_page + last_size[which_page] ; i < which_page + (new_size / PAGE_SIZE) ; i++) {
+
+		if (ok) {
+			for(uint32 i = which_page + last_size[which_page] ; i < which_page + new_pages ; i++) {
 				reserved[i] = 1;
 				struct FrameInfo *newFrameInfoPtr = NULL;
 				uint32 currAddress = kheap_limit + PAGE_SIZE + (PAGE_SIZE * i);
@@ -381,9 +353,15 @@ void *krealloc(void *virtual_address, uint32 new_size)
 					map_frame(ptr_page_directory, newFrameInfoPtr, currAddress, PERM_WRITEABLE | PERM_AVAILABLE);
 				}
 			}
+			last_size[which_page] = new_pages;
+			return virtual_address;
 		} else {
+			void *new_va =  kmalloc(new_size);
+			if(new_va == NULL)
+				return NULL;
+			memcpy(new_va , virtual_address , last_size[which_page] * PAGE_SIZE);
 			kfree(virtual_address);
-			return kmalloc(new_size);
+			return new_va;
 		}
 	}
 	return NULL;

@@ -551,12 +551,7 @@ void* sys_sbrk(int increment)
 			env_page_ws_invalidate(env, i);
 			pt_set_page_permissions(env->env_page_directory, i, 0, PERM_WRITEABLE | PERM_AVAILABLE | PERM_USER);
 		}
-//		if(decrementedBreak <= currentBreak - PAGE_SIZE) // Case: Segment break passes page boundary, deallocate previous pages
-//			{
-//			uint32 decrementPageBound = ROUNDUP(decrementedBreak, PAGE_SIZE);
-//			for(uint32 i = currentBreak - PAGE_SIZE; i >= decrementPageBound; i -= PAGE_SIZE)
-//				unmap_frame(ptr_page_directory, i);
-//		}
+
 		env->segment_break = decrementedBreak;
 		return (void *) env->segment_break;
 	}
